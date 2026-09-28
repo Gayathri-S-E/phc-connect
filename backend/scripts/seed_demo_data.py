@@ -27,7 +27,7 @@ from app.models.organization import Organization
 from app.models.pharmacy import BatchStatus, InventoryBatch, InventoryItem
 from scripts.seed_initial_data import seed_data
 
-DEMO_DOMAIN = "demo.smarthealth.local"
+DEMO_DOMAIN = "demo.smarthealth.com"
 
 DEMO_FACILITIES = [
     ("DEMO-DWH-CGL", "[DEMO] District Drug Warehouse Chengalpattu", FacilityType.DISTRICT_WAREHOUSE, "Chengalpattu"),

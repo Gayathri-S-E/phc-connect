@@ -31,7 +31,7 @@ def upgrade() -> None:
 
     # 3. Create ComplaintStatus Enum & Feedback Complaints Table
     complaint_status_enum = postgresql.ENUM('SUBMITTED', 'UNDER_REVIEW', 'RESOLVED', 'REJECTED', name='complaint_status_enum', create_type=True)
-    complaint_status_enum.create(op.get_bind(), checkfirst=True)
+    # complaint_status_enum.create(op.get_bind(), checkfirst=True)
 
     op.create_table(
         'feedback_complaints',

@@ -24,7 +24,7 @@ def upgrade() -> None:
 
     # 2. Create AttendanceStatus Enum & Staff Attendance Table
     attendance_status_enum = postgresql.ENUM('PRESENT', 'HALF_DAY', 'ON_LEAVE', 'ON_DUTY_CAMP', name='attendance_status_enum', create_type=True)
-    attendance_status_enum.create(op.get_bind(), checkfirst=True)
+    # attendance_status_enum.create(op.get_bind(), checkfirst=True)
 
     op.create_table(
         'staff_attendance',

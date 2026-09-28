@@ -24,35 +24,35 @@ def upgrade() -> None:
         name='batch_status_enum',
         create_type=True
     )
-    batch_status_enum.create(op.get_bind(), checkfirst=True)
+    # batch_status_enum.create(op.get_bind(), checkfirst=True)
 
     stock_movement_type_enum = postgresql.ENUM(
         'RECEIPT', 'DISPENSE', 'TRANSFER_OUT', 'TRANSFER_IN', 'ADJUSTMENT', 'DAMAGE', 'EXPIRY', 'RETURN',
         name='stock_movement_type_enum',
         create_type=True
     )
-    stock_movement_type_enum.create(op.get_bind(), checkfirst=True)
+    # stock_movement_type_enum.create(op.get_bind(), checkfirst=True)
 
     stock_transfer_status_enum = postgresql.ENUM(
         'REQUESTED', 'APPROVED', 'DISPATCHED', 'IN_TRANSIT', 'RECEIVED', 'REJECTED', 'CANCELLED',
         name='stock_transfer_status_enum',
         create_type=True
     )
-    stock_transfer_status_enum.create(op.get_bind(), checkfirst=True)
+    # stock_transfer_status_enum.create(op.get_bind(), checkfirst=True)
 
     shortage_severity_enum = postgresql.ENUM(
         'LOW', 'MEDIUM', 'HIGH', 'CRITICAL',
         name='shortage_severity_enum',
         create_type=True
     )
-    shortage_severity_enum.create(op.get_bind(), checkfirst=True)
+    # shortage_severity_enum.create(op.get_bind(), checkfirst=True)
 
     shortage_status_enum = postgresql.ENUM(
         'REPORTED', 'INVESTIGATING', 'ACTION_TAKEN', 'RESOLVED', 'DISMISSED',
         name='shortage_status_enum',
         create_type=True
     )
-    shortage_status_enum.create(op.get_bind(), checkfirst=True)
+    # shortage_status_enum.create(op.get_bind(), checkfirst=True)
 
     # 2. Table: inventory_items
     op.create_table(
