@@ -43,5 +43,11 @@ class Settings(BaseSettings):
     ]
     ALLOWED_HOSTS: List[str] = ["localhost", "127.0.0.1"]
 
+    # Automatic monitoring (supply monitor + public-health analysis). Off by default so
+    # tests and one-off scripts never start background work.
+    ENABLE_BACKGROUND_JOBS: bool = False
+    SUPPLY_MONITOR_INTERVAL_MINUTES: int = 60
+    PUBLIC_HEALTH_ANALYSIS_INTERVAL_MINUTES: int = 24 * 60
+
 
 settings = Settings()
