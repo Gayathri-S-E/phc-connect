@@ -325,7 +325,7 @@ class RoleAssistantService:
             return [], names
         avail = InventoryItem.quantity_on_hand - InventoryItem.quantity_reserved
         rows = (await self.session.execute(
-            select(InventoryItem.facility_id, InventoryItem.medication_id, Medication.name, avail, InventoryItem.reorder_level)
+            select(InventoryItem.facility_id, InventoryItem.medication_id, Medication.generic_name, avail, InventoryItem.reorder_level)
             .join(Medication, InventoryItem.medication_id == Medication.id).where(InventoryItem.facility_id.in_(ids))
         )).all()
         return rows, names
@@ -370,7 +370,7 @@ class RoleAssistantService:
         names = {f.id: f.name for f in facilities}
         horizon = date.today() + timedelta(days=60)
         rows = (await self.session.execute(
-            select(InventoryItem.facility_id, Medication.name, InventoryBatch.batch_number, InventoryBatch.expiry_date,
+            select(InventoryItem.facility_id, Medication.generic_name, InventoryBatch.batch_number, InventoryBatch.expiry_date,
                    InventoryBatch.current_quantity)
             .join(InventoryItem, InventoryBatch.inventory_item_id == InventoryItem.id)
             .join(Medication, InventoryItem.medication_id == Medication.id)

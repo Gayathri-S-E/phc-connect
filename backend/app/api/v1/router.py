@@ -16,6 +16,12 @@ from app.api.v1.facility_admin_portal import router as facility_admin_portal_rou
 from app.api.v1.intelligence import router as intelligence_router
 from app.api.v1.supply_chain import router as supply_chain_router
 from app.api.v1.insights import router as insights_router
+from app.api.v1.governance import router as governance_router
+from app.api.v1.oversight import district_router, national_router, state_router
+from app.api.v1.supply_requests import router as supply_requests_router
+from app.api.v1.emergency import router as emergency_router
+from app.api.v1.public_health import router as public_health_router
+from app.api.v1.platform import router as platform_router
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -35,3 +41,11 @@ api_router.include_router(pharmacy_router)
 api_router.include_router(intelligence_router)
 api_router.include_router(supply_chain_router)
 api_router.include_router(insights_router)
+api_router.include_router(supply_requests_router)
+api_router.include_router(emergency_router)
+api_router.include_router(governance_router)
+api_router.include_router(district_router)
+api_router.include_router(state_router)
+api_router.include_router(national_router)
+api_router.include_router(public_health_router)
+api_router.include_router(platform_router)

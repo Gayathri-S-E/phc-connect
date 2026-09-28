@@ -331,7 +331,7 @@ class EmergencyService(AuditMixin):
             f = await self.session.get(Facility, a.facility_id)
             available = InventoryItem.quantity_on_hand - InventoryItem.quantity_reserved
             items = (await self.session.execute(
-                select(Medication.name, available, InventoryItem.reorder_level)
+                select(Medication.generic_name, available, InventoryItem.reorder_level)
                 .join(Medication, InventoryItem.medication_id == Medication.id)
                 .where(InventoryItem.facility_id == f.id, available <= InventoryItem.reorder_level)
             )).all()

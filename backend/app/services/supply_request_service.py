@@ -536,7 +536,7 @@ class SupplyRequestService(AuditMixin):
         if ids:
             available = InventoryItem.quantity_on_hand - InventoryItem.quantity_reserved
             items = (await self.session.execute(
-                select(InventoryItem, Medication.name).join(Medication, InventoryItem.medication_id == Medication.id)
+                select(InventoryItem, Medication.generic_name).join(Medication, InventoryItem.medication_id == Medication.id)
                 .where(InventoryItem.facility_id.in_(ids), available <= InventoryItem.reorder_level)
             )).all()
             for item, med in items:
@@ -553,7 +553,7 @@ class SupplyRequestService(AuditMixin):
                 created, skipped = created + ok, skipped + (not ok)
             horizon = date.today() + timedelta(days=EXPIRY_WINDOW_DAYS)
             batches = (await self.session.execute(
-                select(InventoryBatch, InventoryItem.facility_id, Medication.name)
+                select(InventoryBatch, InventoryItem.facility_id, Medication.generic_name)
                 .join(InventoryItem, InventoryBatch.inventory_item_id == InventoryItem.id)
                 .join(Medication, InventoryItem.medication_id == Medication.id)
                 .where(InventoryItem.facility_id.in_(ids), InventoryBatch.status == BatchStatus.AVAILABLE,

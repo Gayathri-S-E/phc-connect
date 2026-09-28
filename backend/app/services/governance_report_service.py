@@ -168,7 +168,7 @@ class GovernanceReportService(AuditMixin):
             ids = [f.id for f in facilities]
             names = {f.id: (f.name, f.district) for f in facilities}
             rows = (await self.session.execute(
-                select(ShortageIncident, Medication.name)
+                select(ShortageIncident, Medication.generic_name)
                 .join(Medication, ShortageIncident.medication_id == Medication.id)
                 .where(ShortageIncident.facility_id.in_(ids), _in_period(ShortageIncident.created_at, start, end))
             )).all() if ids else []
