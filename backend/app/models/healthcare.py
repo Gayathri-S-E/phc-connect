@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import date, datetime, timezone
 from typing import Any, Dict, List, Optional
-from sqlalchemy import Boolean, Date, DateTime, Enum, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, Enum, Float, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -305,6 +305,12 @@ class Prescription(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
 class PrescriptionItem(Base, UUIDPrimaryKeyMixin):
     __tablename__ = "prescription_items"
+    __table_args__ = (
+        CheckConstraint(
+            "quantity_dispensed <= quantity_prescribed",
+            name="chk_prescription_items_dispensed_lte_prescribed",
+        ),
+    )
 
     prescription_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -540,12 +546,17 @@ class DiagnosisCode(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 class Medication(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "medications"
 
+    code: Mapped[Optional[str]] = mapped_column(String(50), unique=True, index=True, nullable=True)
     generic_name: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
     brand_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    category: Mapped[Optional[str]] = mapped_column(String(100), index=True, nullable=True)
     strength: Mapped[str] = mapped_column(String(100), nullable=False)
     dosage_form: Mapped[str] = mapped_column(String(100), nullable=False)
     route: Mapped[str] = mapped_column(String(100), nullable=False)
     unit: Mapped[str] = mapped_column(String(50), nullable=False)
+    is_essential: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    storage_temperature_min: Mapped[Optional[float]] = mapped_column(Numeric(5, 2), nullable=True)
+    storage_temperature_max: Mapped[Optional[float]] = mapped_column(Numeric(5, 2), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     @property
@@ -555,11 +566,8 @@ class Medication(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     def __init__(self, **kwargs):
         if "name" in kwargs and "generic_name" not in kwargs:
             kwargs["generic_name"] = kwargs.pop("name")
-        if "code" in kwargs:
-            if "brand_name" not in kwargs:
-                kwargs["brand_name"] = kwargs.pop("code")
-            else:
-                kwargs.pop("code")
+        if "code" in kwargs and "brand_name" not in kwargs:
+            kwargs["brand_name"] = kwargs["code"]
         if "route" not in kwargs:
             kwargs["route"] = "Oral"
         if "unit" not in kwargs:

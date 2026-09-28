@@ -19,7 +19,15 @@ from app.models.facility import Facility, FacilityType
 from app.models.identity import Permission, Role, RolePermission, ScopeLevel, User, UserRole
 from app.models.organization import Organization, OrganizationType
 
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.pool import StaticPool
+
+
+@compiles(JSONB, "sqlite")
+def _compile_jsonb_sqlite(type_, compiler, **kw):
+    return "JSON"
+
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 

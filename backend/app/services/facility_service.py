@@ -98,6 +98,35 @@ class FacilityService:
             raise ResourceNotFoundException("Facility", str(facility_id))
         return fac
 
+    async def update_facility(
+        self,
+        facility_id: uuid.UUID,
+        data: FacilityUpdate,
+        actor_id: Optional[uuid.UUID] = None,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None,
+    ) -> Facility:
+        fac = await self.get_facility(facility_id)
+        changes = data.model_dump(exclude_unset=True)
+        old_state = {k: getattr(fac, k) for k in changes}
+        for field, value in changes.items():
+            setattr(fac, field, value)
+        await self.session.flush()
+
+        await self.audit_repo.record_event(
+            action="FACILITY_UPDATED",
+            resource_type="facility",
+            resource_id=str(fac.id),
+            actor_id=actor_id,
+            organization_id=fac.organization_id,
+            facility_id=fac.id,
+            old_state={k: v if isinstance(v, (str, bool, type(None))) else str(v) for k, v in old_state.items()},
+            new_state={k: v if isinstance(v, (str, bool, type(None))) else str(v) for k, v in changes.items()},
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+        return fac
+
     async def list_facilities(
         self,
         organization_id: Optional[uuid.UUID] = None,

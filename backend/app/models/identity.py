@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
 from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import INET, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -143,7 +143,9 @@ class UserSession(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
     refresh_token_hash: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     user_agent: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    ip_address: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    ip_address: Mapped[Optional[str]] = mapped_column(
+        INET().with_variant(String(50), "sqlite"), nullable=True
+    )
     is_revoked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 

@@ -18,14 +18,17 @@ from app.models.pharmacy import (
     ShortageSeverity,
     ShortageStatus,
     StockMovement,
+    StockMovementReferenceType,
     StockMovementType,
     StockTransfer,
     StockTransferStatus,
 )
+from app.models.supply_chain import Supplier
 from app.repositories.audit_repository import AuditRepository
 from app.repositories.facility_repository import FacilityRepository
 from app.repositories.healthcare_repository import HealthcareRepository
 from app.repositories.pharmacy_repository import PharmacyRepository
+from app.services.supply_request_service import SupplyRequestService
 from app.schemas.pharmacy import (
     DispenseItemFEFO,
     DispensePrescriptionRequest,
@@ -171,6 +174,13 @@ class PharmacyService:
             if data.expiry_date <= date.today():
                 raise BadRequestException("Cannot receive expired medication batches into active inventory.")
 
+            supplier_name = data.supplier_name
+            if data.supplier_id:
+                supplier = await self.session.get(Supplier, data.supplier_id)
+                if not supplier:
+                    raise ResourceNotFoundException("Supplier", str(data.supplier_id))
+                supplier_name = supplier_name or supplier.name
+
             item = await self.get_or_create_inventory_item(data.facility_id, data.medication_id)
 
             # Check if this batch number already exists for this inventory item
@@ -195,7 +205,9 @@ class PharmacyService:
                     initial_quantity=data.quantity,
                     current_quantity=data.quantity,
                     status=BatchStatus.AVAILABLE,
-                    supplier_name=data.supplier_name,
+                    supplier_name=supplier_name,
+                    supplier_id=data.supplier_id,
+                    unit_cost=data.unit_cost,
                 )
                 await self.repo.create_batch(batch)
 
@@ -210,6 +222,8 @@ class PharmacyService:
                 movement_type=StockMovementType.RECEIPT,
                 quantity=data.quantity,
                 balance_after=item.quantity_on_hand,
+                reference_type=StockMovementReferenceType.PO if data.purchase_order_id else None,
+                reference_id=str(data.purchase_order_id) if data.purchase_order_id else None,
                 notes=data.notes or f"Goods receipt: batch {batch.batch_number}",
                 actor_id=actor_id,
             )
@@ -502,6 +516,7 @@ class PharmacyService:
             medication_id=data.medication_id,
             requested_quantity=data.requested_quantity,
             status=StockTransferStatus.REQUESTED,
+            urgency=data.urgency,
             requested_by_id=requester_id,
             notes=data.notes,
         )
@@ -620,6 +635,7 @@ class PharmacyService:
             transfer.batch_id = dispatched_batch_id
             transfer.dispatched_by_id = dispatcher_id
             transfer.dispatched_at = datetime.now(timezone.utc)
+            await SupplyRequestService.on_transfer_dispatched(self.session, transfer, dispatcher_id)
 
             await self.audit_repo.record_event(
                 action="STOCK_TRANSFER_DISPATCHED",
@@ -662,9 +678,22 @@ class PharmacyService:
             if transfer.batch_id:
                 source_batch = await self.repo.get_batch_by_id(transfer.batch_id)
 
-            batch_num = source_batch.batch_number if source_batch else f"TRF-{transfer.transfer_number}"
-            exp_date = source_batch.expiry_date if source_batch else date.today() + timedelta(days=365)
-            mfg_date = source_batch.manufacture_date if source_batch else date.today() - timedelta(days=90)
+            if source_batch is None and not (data.batch_number and data.expiry_date):
+                raise BadRequestException(
+                    "Dispatched batch is unknown; the receiver must record batch_number and expiry_date."
+                )
+            # The receiver's verified batch/expiry wins over the dispatch record (Role 07 §8).
+            batch_num = data.batch_number or source_batch.batch_number
+            exp_date = data.expiry_date or source_batch.expiry_date
+            mfg_date = source_batch.manufacture_date if source_batch else date.today()
+            if exp_date < date.today():
+                raise BadRequestException("Received stock is already expired; record it as damaged and report a discrepancy.")
+            mismatch = []
+            if source_batch and data.batch_number and data.batch_number != source_batch.batch_number:
+                mismatch.append(f"batch {source_batch.batch_number} dispatched, {data.batch_number} received")
+            if source_batch and data.expiry_date and data.expiry_date != source_batch.expiry_date:
+                mismatch.append(f"expiry {source_batch.expiry_date} dispatched, {data.expiry_date} received")
+            discrepancy_reason = "; ".join(filter(None, [data.discrepancy_reason] + mismatch)) or None
 
             # Find or create batch at destination
             dest_batch = None
@@ -711,6 +740,11 @@ class PharmacyService:
             transfer.received_quantity = data.received_quantity
             transfer.received_by_id = receiver_id
             transfer.received_at = datetime.now(timezone.utc)
+            await SupplyRequestService.on_transfer_received(
+                self.session, transfer, receiver_id, received=data.received_quantity,
+                damaged=data.damaged_quantity, batch_number=batch_num, expiry_date=exp_date,
+                discrepancy_reason=discrepancy_reason,
+            )
 
             await self.audit_repo.record_event(
                 action="STOCK_TRANSFER_RECEIVED",

@@ -2,7 +2,7 @@ import enum
 import uuid
 from datetime import date, datetime, timezone
 from typing import List, Optional
-from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, Enum, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -49,9 +49,23 @@ class ShortageSeverity(str, enum.Enum):
 class ShortageStatus(str, enum.Enum):
     REPORTED = "REPORTED"
     INVESTIGATING = "INVESTIGATING"
+    ESCALATED_DISTRICT = "ESCALATED_DISTRICT"
+    ESCALATED_STATE = "ESCALATED_STATE"
     ACTION_TAKEN = "ACTION_TAKEN"
     RESOLVED = "RESOLVED"
     DISMISSED = "DISMISSED"
+
+
+class StockMovementReferenceType(str, enum.Enum):
+    PRESCRIPTION = "PRESCRIPTION"
+    TRANSFER = "TRANSFER"
+    PO = "PO"
+    ADJUSTMENT = "ADJUSTMENT"
+
+
+class TransferUrgency(str, enum.Enum):
+    NORMAL = "NORMAL"
+    EMERGENCY_SHORTAGE = "EMERGENCY_SHORTAGE"
 
 
 class InventoryItem(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -64,6 +78,7 @@ class InventoryItem(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         UniqueConstraint("facility_id", "medication_id", name="uq_facility_medication_inventory"),
         CheckConstraint("quantity_on_hand >= 0", name="chk_inventory_qty_non_negative"),
         CheckConstraint("quantity_reserved >= 0", name="chk_inventory_reserved_non_negative"),
+        CheckConstraint("reorder_level >= critical_level", name="chk_inventory_reorder_gte_critical"),
     )
 
     facility_id: Mapped[uuid.UUID] = mapped_column(
@@ -81,8 +96,10 @@ class InventoryItem(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     quantity_on_hand: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     quantity_reserved: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     reorder_level: Mapped[int] = mapped_column(Integer, default=50, nullable=False)
+    critical_level: Mapped[int] = mapped_column(Integer, default=10, nullable=False)
     minimum_stock_level: Mapped[int] = mapped_column(Integer, default=20, nullable=False)
     maximum_stock_level: Mapped[int] = mapped_column(Integer, default=1000, nullable=False)
+    max_capacity: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     unit_cost: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True)
 
     # Relationships
@@ -106,6 +123,7 @@ class InventoryBatch(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         UniqueConstraint("inventory_item_id", "batch_number", name="uq_item_batch_number"),
         CheckConstraint("current_quantity >= 0", name="chk_batch_qty_non_negative"),
         CheckConstraint("initial_quantity > 0", name="chk_batch_initial_qty_positive"),
+        Index("ix_inventory_batches_item_expiry", "inventory_item_id", "expiry_date"),
     )
 
     inventory_item_id: Mapped[uuid.UUID] = mapped_column(
@@ -125,9 +143,17 @@ class InventoryBatch(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         nullable=False,
     )
     supplier_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    supplier_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("suppliers.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
+    unit_cost: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True)
 
     # Relationships
     inventory_item = relationship("InventoryItem", back_populates="batches")
+    supplier = relationship("Supplier")
     allocations = relationship("DispensingAllocation", back_populates="batch")
 
 
@@ -162,6 +188,10 @@ class StockMovement(Base, UUIDPrimaryKeyMixin):
     )
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     balance_after: Mapped[int] = mapped_column(Integer, nullable=False)
+    reference_type: Mapped[Optional[StockMovementReferenceType]] = mapped_column(
+        Enum(StockMovementReferenceType, name="stock_movement_reference_type_enum"),
+        nullable=True,
+    )
     reference_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     actor_id: Mapped[uuid.UUID] = mapped_column(
@@ -287,6 +317,11 @@ class StockTransfer(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     status: Mapped[StockTransferStatus] = mapped_column(
         Enum(StockTransferStatus, name="stock_transfer_status_enum"),
         default=StockTransferStatus.REQUESTED,
+        nullable=False,
+    )
+    urgency: Mapped[TransferUrgency] = mapped_column(
+        Enum(TransferUrgency, name="transfer_urgency_enum"),
+        default=TransferUrgency.NORMAL,
         nullable=False,
     )
     requested_by_id: Mapped[uuid.UUID] = mapped_column(

@@ -1,3 +1,4 @@
+from decimal import Decimal
 import uuid
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional
@@ -9,6 +10,7 @@ from app.models.pharmacy import (
     ShortageStatus,
     StockMovementType,
     StockTransferStatus,
+    TransferUrgency,
 )
 from app.schemas.healthcare import MedicationResponse
 
@@ -105,6 +107,9 @@ class StockReceiptRequest(BaseModel):
     expiry_date: date
     quantity: int = Field(gt=0)
     supplier_name: Optional[str] = None
+    supplier_id: Optional[uuid.UUID] = None
+    unit_cost: Optional[Decimal] = Field(default=None, ge=0)
+    purchase_order_id: Optional[uuid.UUID] = None
     notes: Optional[str] = None
 
 
@@ -193,6 +198,7 @@ class StockTransferCreate(BaseModel):
     destination_facility_id: uuid.UUID
     medication_id: uuid.UUID
     requested_quantity: int = Field(gt=0)
+    urgency: TransferUrgency = TransferUrgency.NORMAL
     notes: Optional[str] = None
 
 
@@ -215,6 +221,11 @@ class StockTransferReceiveRequest(BaseModel):
 
     received_quantity: int = Field(gt=0)
     notes: Optional[str] = None
+    # Receiver verification (Role 07 §8): what physically arrived, not what was dispatched.
+    damaged_quantity: int = Field(default=0, ge=0)
+    batch_number: Optional[str] = Field(default=None, max_length=100)
+    expiry_date: Optional[date] = None
+    discrepancy_reason: Optional[str] = Field(default=None, max_length=2000)
 
 
 class StockTransferResponse(BaseModel):
@@ -230,6 +241,7 @@ class StockTransferResponse(BaseModel):
     dispatched_quantity: Optional[int] = None
     received_quantity: Optional[int] = None
     status: StockTransferStatus
+    urgency: TransferUrgency = TransferUrgency.NORMAL
     requested_by_id: uuid.UUID
     approved_by_id: Optional[uuid.UUID] = None
     dispatched_by_id: Optional[uuid.UUID] = None

@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import AuthenticatedUserContext, RequestContext, get_current_user, get_db_session, get_request_context, require_permission
 from app.core.permissions import SystemPermissions
 from app.schemas.common import DataResponse
-from app.schemas.facility import FacilityCreate, FacilityResponse, OrganizationCreate, OrganizationResponse
+from app.schemas.facility import FacilityCreate, FacilityResponse, FacilityUpdate, OrganizationCreate, OrganizationResponse
 from app.services.facility_service import FacilityService
 
 router = APIRouter(tags=["Facilities & Organizations"])
@@ -86,4 +86,28 @@ async def get_facility(
     """Get detailed profile and coordinates of a facility."""
     service = FacilityService(session)
     fac = await service.get_facility(facility_id)
+    return DataResponse(data=FacilityResponse.model_validate(fac))
+
+
+@router.patch(
+    "/facilities/{facility_id}",
+    response_model=DataResponse[FacilityResponse],
+    dependencies=[Depends(require_permission(SystemPermissions.IDENTITY_FACILITY_MANAGE))],
+)
+async def update_facility(
+    facility_id: uuid.UUID,
+    payload: FacilityUpdate,
+    current_user: AuthenticatedUserContext = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+    ctx: RequestContext = Depends(get_request_context),
+):
+    """Update facility operational metadata."""
+    service = FacilityService(session)
+    fac = await service.update_facility(
+        facility_id,
+        payload,
+        actor_id=current_user.id,
+        ip_address=ctx.ip_address,
+        user_agent=ctx.user_agent,
+    )
     return DataResponse(data=FacilityResponse.model_validate(fac))

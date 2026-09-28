@@ -232,20 +232,48 @@ class HealthcareRepository:
         facility_id: Optional[uuid.UUID] = None,
         patient_id: Optional[uuid.UUID] = None,
         status: Optional[PrescriptionStatus] = None,
+        doctor_id: Optional[uuid.UUID] = None,
     ) -> Sequence[Prescription]:
         stmt = select(Prescription).options(
             selectinload(Prescription.items),
             selectinload(Prescription.consultation).selectinload(Consultation.doctor),
         )
+        stmt = self._prescription_filters(stmt, facility_id, patient_id, status, doctor_id)
+        stmt = stmt.order_by(Prescription.created_at.desc())
+        res = await self.session.execute(stmt)
+        return res.scalars().all()
+
+    @staticmethod
+    def _prescription_filters(stmt, facility_id, patient_id, status, doctor_id):
         if facility_id:
             stmt = stmt.where(Prescription.facility_id == facility_id)
         if patient_id:
             stmt = stmt.where(Prescription.patient_id == patient_id)
         if status:
             stmt = stmt.where(Prescription.status == status)
-        stmt = stmt.order_by(Prescription.created_at.desc())
+        if doctor_id:
+            stmt = stmt.where(Prescription.doctor_id == doctor_id)
+        return stmt
+
+    async def list_prescriptions_paginated(
+        self,
+        facility_id: Optional[uuid.UUID],
+        patient_id: Optional[uuid.UUID],
+        status: Optional[PrescriptionStatus],
+        doctor_id: Optional[uuid.UUID],
+        offset: int,
+        limit: int,
+    ) -> Tuple[Sequence[Prescription], int]:
+        base = self._prescription_filters(select(Prescription), facility_id, patient_id, status, doctor_id)
+        total = (await self.session.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
+        stmt = (
+            base.options(selectinload(Prescription.items))
+            .order_by(Prescription.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+        )
         res = await self.session.execute(stmt)
-        return res.scalars().all()
+        return res.scalars().all(), total
 
     # --- Lab Orders Repository ---
     async def create_lab_order(self, order: LabOrder) -> LabOrder:
@@ -286,6 +314,31 @@ class HealthcareRepository:
         stmt = stmt.order_by(LabOrder.ordered_at.desc())
         res = await self.session.execute(stmt)
         return res.scalars().all()
+
+    async def list_lab_orders_paginated(
+        self,
+        facility_id: Optional[uuid.UUID],
+        patient_id: Optional[uuid.UUID],
+        status: Optional[LabOrderStatus],
+        offset: int,
+        limit: int,
+    ) -> Tuple[Sequence[LabOrder], int]:
+        base = select(LabOrder)
+        if facility_id:
+            base = base.where(LabOrder.facility_id == facility_id)
+        if patient_id:
+            base = base.where(LabOrder.patient_id == patient_id)
+        if status:
+            base = base.where(LabOrder.status == status)
+        total = (await self.session.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
+        stmt = (
+            base.options(selectinload(LabOrder.results))
+            .order_by(LabOrder.ordered_at.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+        res = await self.session.execute(stmt)
+        return res.scalars().all(), total
 
     async def list_lab_worklist(
         self,

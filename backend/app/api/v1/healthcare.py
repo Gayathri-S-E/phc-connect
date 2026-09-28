@@ -15,7 +15,8 @@ from app.api.deps import (
 from app.core.authorization import check_scope_access
 from app.core.exceptions import PermissionDeniedException, ResourceNotFoundException
 from app.core.permissions import SystemPermissions
-from app.models.healthcare import AppointmentStatus
+from app.api.scope import resolve_facility_filter
+from app.models.healthcare import AppointmentStatus, LabOrderStatus, PrescriptionStatus
 from app.models.identity import ScopeLevel
 from app.schemas.common import DataResponse, PaginatedResponse, PaginationMeta
 from app.schemas.healthcare import (
@@ -549,6 +550,41 @@ async def create_prescription(
 
 
 @router.get(
+    "/prescriptions",
+    response_model=PaginatedResponse[PrescriptionResponse],
+    dependencies=[Depends(require_permission(SystemPermissions.PRESCRIPTIONS_READ))],
+)
+async def list_prescriptions(
+    facility_id: Optional[uuid.UUID] = Query(None),
+    patient_id: Optional[uuid.UUID] = Query(None),
+    doctor_id: Optional[uuid.UUID] = Query(None),
+    rx_status: Optional[PrescriptionStatus] = Query(None, alias="status"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    current_user: AuthenticatedUserContext = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+):
+    """Search prescriptions by patient, doctor, facility, or status."""
+    target = await resolve_facility_filter(current_user, facility_id, SystemPermissions.PRESCRIPTIONS_READ, session)
+    service = HealthcareService(session)
+    items, total = await service.repo.list_prescriptions_paginated(
+        facility_id=target,
+        patient_id=patient_id,
+        status=rx_status,
+        doctor_id=doctor_id,
+        offset=(page - 1) * page_size,
+        limit=page_size,
+    )
+    return PaginatedResponse(
+        data=[PrescriptionResponse.model_validate(p) for p in items],
+        pagination=PaginationMeta(
+            page=page, page_size=page_size, total=total,
+            total_pages=math.ceil(total / page_size) if total else 0,
+        ),
+    )
+
+
+@router.get(
     "/prescriptions/{prescription_id}",
     response_model=DataResponse[PrescriptionResponse],
 )
@@ -645,6 +681,39 @@ async def create_lab_order(
         user_agent=ctx.user_agent,
     )
     return DataResponse(data=LabOrderResponse.model_validate(order))
+
+
+@router.get(
+    "/labs/orders",
+    response_model=PaginatedResponse[LabOrderResponse],
+    dependencies=[Depends(require_permission(SystemPermissions.LABS_ORDER_READ))],
+)
+async def list_lab_orders(
+    facility_id: Optional[uuid.UUID] = Query(None),
+    patient_id: Optional[uuid.UUID] = Query(None),
+    order_status: Optional[LabOrderStatus] = Query(None, alias="status"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    current_user: AuthenticatedUserContext = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+):
+    """List lab orders, e.g. those pending sample collection or testing."""
+    target = await resolve_facility_filter(current_user, facility_id, SystemPermissions.LABS_ORDER_READ, session)
+    service = HealthcareService(session)
+    items, total = await service.repo.list_lab_orders_paginated(
+        facility_id=target,
+        patient_id=patient_id,
+        status=order_status,
+        offset=(page - 1) * page_size,
+        limit=page_size,
+    )
+    return PaginatedResponse(
+        data=[LabOrderResponse.model_validate(o) for o in items],
+        pagination=PaginationMeta(
+            page=page, page_size=page_size, total=total,
+            total_pages=math.ceil(total / page_size) if total else 0,
+        ),
+    )
 
 
 @router.post(
@@ -832,3 +901,12 @@ async def list_medications(
     service = HealthcareService(session)
     meds = await service.list_medications(active_only=active_only)
     return DataResponse(data=[MedicationResponse.model_validate(m) for m in meds])
+
+
+router.add_api_route(
+    "/consultations/{consultation_id}/finalize",
+    finalize_consultation,
+    methods=["PATCH"],
+    response_model=DataResponse[ConsultationResponse],
+    dependencies=[Depends(require_permission(SystemPermissions.CONSULTATIONS_CONDUCT))],
+)

@@ -506,3 +506,82 @@ async def resolve_shortage_incident(
         user_agent=req_ctx.user_agent,
     )
     return DataResponse(data=incident)
+
+
+# ============================================================================
+# CONTRACT ENDPOINTS (API.md) & PATH ALIASES
+# ============================================================================
+
+MOVEMENT_ENDPOINT_TYPES = {StockMovementType.DAMAGE, StockMovementType.EXPIRY, StockMovementType.RETURN}
+
+
+@router.get(
+    "/inventory/batches/expiring",
+    response_model=DataResponse[List[InventoryBatchResponse]],
+    dependencies=[Depends(require_permission(SystemPermissions.INVENTORY_ITEM_READ))],
+)
+async def list_expiring_batches(
+    days: int = Query(90, ge=1, le=730),
+    facility_id: Optional[uuid.UUID] = Query(None),
+    user_ctx: AuthenticatedUserContext = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+):
+    """Batches expiring within `days` (default 90), soonest first."""
+    return await list_batches(
+        inventory_item_id=None,
+        facility_id=facility_id,
+        expiring_within_days=days,
+        user_ctx=user_ctx,
+        session=session,
+    )
+
+
+@router.post(
+    "/inventory/movements",
+    response_model=DataResponse[StockMovementResponse],
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_permission(SystemPermissions.INVENTORY_MOVEMENT_RECORD))],
+)
+async def record_stock_movement(
+    payload: StockAdjustmentRequest,
+    user_ctx: AuthenticatedUserContext = Depends(get_current_user),
+    req_ctx: RequestContext = Depends(get_request_context),
+    session: AsyncSession = Depends(get_db_session),
+):
+    """Record a loss/return movement (DAMAGE, EXPIRY, RETURN). Receipts use POST /inventory/batches;
+    count corrections use POST /inventory/adjustments."""
+    if payload.movement_type not in MOVEMENT_ENDPOINT_TYPES:
+        from app.core.exceptions import BadRequestException
+        raise BadRequestException(
+            "movement_type must be DAMAGE, EXPIRY or RETURN here; use /inventory/batches for receipts "
+            "and /inventory/adjustments for ADJUSTMENT."
+        )
+    return await adjust_stock(payload=payload, user_ctx=user_ctx, req_ctx=req_ctx, session=session)
+
+
+def _alias(path: str, endpoint, method: str, permission: str, **kwargs) -> None:
+    router.add_api_route(
+        path,
+        endpoint,
+        methods=[method],
+        dependencies=[Depends(require_permission(permission))],
+        **kwargs,
+    )
+
+
+_alias("/inventory/batches", receive_stock, "POST", SystemPermissions.INVENTORY_ITEM_CREATE,
+       response_model=DataResponse[InventoryBatchResponse], status_code=status.HTTP_201_CREATED)
+_alias("/inventory/adjustments", adjust_stock, "POST", SystemPermissions.INVENTORY_STOCK_ADJUST,
+       response_model=DataResponse[StockMovementResponse])
+_alias("/inventory/transfers", create_transfer_request, "POST", SystemPermissions.INVENTORY_TRANSFER_REQUEST,
+       response_model=DataResponse[StockTransferResponse], status_code=status.HTTP_201_CREATED)
+_alias("/inventory/transfers", list_transfers, "GET", SystemPermissions.INVENTORY_ITEM_READ,
+       response_model=DataResponse[List[StockTransferResponse]])
+_alias("/inventory/transfers/{transfer_id:uuid}/approve", approve_transfer, "POST",
+       SystemPermissions.INVENTORY_TRANSFER_APPROVE, response_model=DataResponse[StockTransferResponse])
+_alias("/inventory/transfers/{transfer_id:uuid}/dispatch", dispatch_transfer, "POST",
+       SystemPermissions.INVENTORY_TRANSFER_DISPATCH, response_model=DataResponse[StockTransferResponse])
+_alias("/inventory/transfers/{transfer_id:uuid}/receive", receive_transfer, "POST",
+       SystemPermissions.INVENTORY_TRANSFER_RECEIVE, response_model=DataResponse[StockTransferResponse])
+_alias("/shortages/{incident_id:uuid}/resolve", resolve_shortage_incident, "POST",
+       SystemPermissions.SHORTAGES_INCIDENT_RESOLVE, response_model=DataResponse[ShortageIncidentResponse])

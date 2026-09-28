@@ -173,3 +173,26 @@ async def assign_role(
             created_at=user_role.created_at,
         )
     )
+
+
+@router.delete(
+    "/{user_id}/roles/{role_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_permission(SystemPermissions.IDENTITY_ROLE_ASSIGN))],
+)
+async def revoke_role(
+    user_id: uuid.UUID,
+    role_id: uuid.UUID,
+    current_user: AuthenticatedUserContext = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+    ctx: RequestContext = Depends(get_request_context),
+):
+    """Revoke a role (at every scope it was granted) from a user."""
+    service = UserService(session)
+    await service.revoke_role(
+        user_id,
+        role_id,
+        actor_id=current_user.id,
+        ip_address=ctx.ip_address,
+        user_agent=ctx.user_agent,
+    )

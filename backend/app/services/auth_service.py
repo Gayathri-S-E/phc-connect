@@ -1,21 +1,33 @@
 import hashlib
+import ipaddress
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Tuple
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.exceptions import AuthenticationException, ConflictException, ResourceNotFoundException
+from app.core.exceptions import AuthenticationException, BadRequestException, ConflictException, ResourceNotFoundException
 from app.core.security import create_access_token, create_refresh_token, decode_token, get_password_hash, verify_password
 from app.models.identity import User, UserSession
 from app.repositories.audit_repository import AuditRepository
 from app.repositories.user_repository import UserRepository
-from app.schemas.auth import LoginRequest, RegisterPatientRequest, TokenResponse
+from app.schemas.auth import LoginRequest, PasswordChangeRequest, RegisterPatientRequest, TokenResponse
 
 
 def _hash_token(token: str) -> str:
     """Create SHA-256 hash of refresh token for safe database persistence."""
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _valid_ip(value: str | None) -> str | None:
+    # user_sessions.ip_address is INET; X-Forwarded-For is client-controlled.
+    if not value:
+        return None
+    try:
+        return str(ipaddress.ip_address(value))
+    except ValueError:
+        return None
 
 
 class AuthService:
@@ -61,7 +73,7 @@ class AuthService:
             user_id=user.id,
             refresh_token_hash=_hash_token(refresh_token),
             user_agent=user_agent,
-            ip_address=ip_address,
+            ip_address=_valid_ip(ip_address),
             expires_at=datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
         )
         await self.user_repo.create_session(session_obj)
@@ -137,7 +149,7 @@ class AuthService:
             user_id=user.id,
             refresh_token_hash=_hash_token(new_refresh_token),
             user_agent=user_agent,
-            ip_address=ip_address,
+            ip_address=_valid_ip(ip_address),
             expires_at=datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
         )
         await self.user_repo.create_session(new_session)
@@ -155,6 +167,37 @@ class AuthService:
             session_obj = await self.user_repo.get_session_by_token_hash(token_hash)
             if session_obj:
                 await self.user_repo.revoke_session(session_obj)
+
+    async def change_password(
+        self,
+        user: User,
+        data: PasswordChangeRequest,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+    ) -> None:
+        if not verify_password(data.current_password, user.hashed_password):
+            raise BadRequestException("Current password is incorrect.")
+        if data.current_password == data.new_password:
+            raise BadRequestException("New password must differ from the current password.")
+
+        user.hashed_password = get_password_hash(data.new_password)
+        await self.user_repo.update(user)
+        await self.session.execute(
+            update(UserSession)
+            .where(UserSession.user_id == user.id, UserSession.is_revoked.is_(False))
+            .values(is_revoked=True)
+        )
+
+        await self.audit_repo.record_event(
+            action="AUTH_PASSWORD_CHANGED",
+            resource_type="user",
+            resource_id=str(user.id),
+            actor_id=user.id,
+            organization_id=user.organization_id,
+            facility_id=user.facility_id,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
 
     async def register_patient(
         self,

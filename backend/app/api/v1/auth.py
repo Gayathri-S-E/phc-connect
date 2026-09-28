@@ -2,7 +2,14 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import AuthenticatedUserContext, RequestContext, get_current_user, get_db_session, get_request_context
-from app.schemas.auth import CurrentUserResponse, LoginRequest, RefreshRequest, RegisterPatientRequest, TokenResponse
+from app.schemas.auth import (
+    CurrentUserResponse,
+    LoginRequest,
+    PasswordChangeRequest,
+    RefreshRequest,
+    RegisterPatientRequest,
+    TokenResponse,
+)
 from app.schemas.common import DataResponse
 from app.schemas.user import UserResponse
 from app.services.auth_service import AuthService
@@ -59,7 +66,20 @@ async def register(
     return DataResponse(data=UserResponse.model_validate(user))
 
 
-@router.get("/me", response_model=DataResponse[CurrentUserResponse], status_code=status.HTTP_200_OK)
+@router.post("/change-password", status_code=status.HTTP_200_OK)
+async def change_password(
+    payload: PasswordChangeRequest,
+    current_user: AuthenticatedUserContext = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+    ctx: RequestContext = Depends(get_request_context),
+):
+    """Change password after verifying the current one; all refresh sessions are revoked."""
+    service = AuthService(session)
+    await service.change_password(current_user.user, payload, ip_address=ctx.ip_address, user_agent=ctx.user_agent)
+    return {"message": "Password changed. Please sign in again on other devices."}
+
+
+@router.get("/me",response_model=DataResponse[CurrentUserResponse], status_code=status.HTTP_200_OK)
 async def get_me(
     current_user: AuthenticatedUserContext = Depends(get_current_user),
 ):

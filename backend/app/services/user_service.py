@@ -2,7 +2,7 @@ import uuid
 from typing import Optional, Sequence, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import ConflictException, ResourceNotFoundException
+from app.core.exceptions import BadRequestException, ConflictException, ResourceNotFoundException
 from app.core.security import get_password_hash
 from app.models.identity import ScopeLevel, User, UserRole
 from app.repositories.audit_repository import AuditRepository
@@ -121,6 +121,8 @@ class UserService:
         user_agent: Optional[str] = None,
     ) -> UserRole:
         user = await self.get_by_id(user_id)
+        if actor_id == user.id:
+            raise BadRequestException("You cannot assign roles to yourself (privilege self-escalation is blocked).")
         role = await self.role_repo.get_by_id(data.role_id)
         if not role:
             raise ResourceNotFoundException("Role", str(data.role_id))
@@ -145,6 +147,32 @@ class UserService:
             user_agent=user_agent,
         )
         return user_role
+
+    async def revoke_role(
+        self,
+        user_id: uuid.UUID,
+        role_id: uuid.UUID,
+        actor_id: Optional[uuid.UUID] = None,
+        ip_address: Optional[str] = None,
+        user_agent: Optional[str] = None,
+    ) -> None:
+        user = await self.get_by_id(user_id)
+        if actor_id == user.id:
+            raise BadRequestException("You cannot revoke your own role assignments.")
+        if not await self.user_repo.remove_role(user.id, role_id):
+            raise ResourceNotFoundException("UserRole", f"{user_id}/{role_id}")
+
+        await self.audit_repo.record_event(
+            action="USER_ROLE_REVOKED",
+            resource_type="user_role",
+            resource_id=f"{user_id}/{role_id}",
+            actor_id=actor_id,
+            organization_id=user.organization_id,
+            facility_id=user.facility_id,
+            old_state={"role_id": str(role_id)},
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
 
     async def list_users(
         self,

@@ -86,6 +86,50 @@ class SystemPermissions:
     ALERTS_READ = "alerts.read"
     ALERTS_ACKNOWLEDGE = "alerts.acknowledge"
 
+    # Supply Requests, Allocation & Receipt Verification (Roles 05, 07, 08, 10)
+    SUPPLY_REQUEST_CREATE = "supply.request.create"
+    SUPPLY_REQUEST_READ = "supply.request.read"
+    SUPPLY_REQUEST_REVIEW = "supply.request.review"
+    SUPPLY_ALLOCATION_MANAGE = "supply.allocation.manage"
+    SUPPLY_RECEIPT_VERIFY = "supply.receipt.verify"
+    SUPPLY_IMPACT_SHARE = "supply.impact.share"
+    SUPPLY_IMPACT_READ = "supply.impact.read"
+
+    # District Emergency Coordination (Role 08)
+    EMERGENCY_INCIDENT_REPORT = "emergency.incident.report"
+    EMERGENCY_INCIDENT_READ = "emergency.incident.read"
+    EMERGENCY_INCIDENT_MANAGE = "emergency.incident.manage"
+    EMERGENCY_INCIDENT_RESOLVE = "emergency.incident.resolve"
+
+    # District / State / National Governance (Roles 06, 09, 12)
+    GOVERNANCE_DISTRICT_VIEW = "governance.district.view"
+    GOVERNANCE_STATE_VIEW = "governance.state.view"
+    GOVERNANCE_NATIONAL_VIEW = "governance.national.view"
+    GOVERNANCE_ACTION_CREATE = "governance.action.create"
+    GOVERNANCE_ACTION_MANAGE = "governance.action.manage"
+    GOVERNANCE_ACTION_RESPOND = "governance.action.respond"
+    GOVERNANCE_ALERT_READ = "governance.alert.read"
+    GOVERNANCE_ALERT_MANAGE = "governance.alert.manage"
+    GOVERNANCE_REPORT_GENERATE = "governance.report.generate"
+    GOVERNANCE_REPORT_REVIEW = "governance.report.review"
+    GOVERNANCE_APPROVAL_REQUEST = "governance.approval.request"
+    GOVERNANCE_APPROVAL_DECIDE = "governance.approval.decide"
+    GOVERNANCE_SCHEME_READ = "governance.scheme.read"
+    GOVERNANCE_SCHEME_MANAGE = "governance.scheme.manage"
+    GOVERNANCE_SCHEME_REPORT = "governance.scheme.report"
+    GOVERNANCE_AI_ASSIST = "governance.ai.assist"
+
+    # Public Health Analytics (Role 11)
+    ANALYTICS_INDICATOR_READ = "analytics.indicator.read"
+    ANALYTICS_INDICATOR_MANAGE = "analytics.indicator.manage"
+    ANALYTICS_AGGREGATE_SUBMIT = "analytics.aggregate.submit"
+    ANALYTICS_INSIGHT_REVIEW = "analytics.insight.review"
+    ANALYTICS_DATA_QUALITY_MANAGE = "analytics.data_quality.manage"
+
+    # Platform Administration (Role 13)
+    PLATFORM_DASHBOARD_VIEW = "platform.dashboard.view"
+    PLATFORM_SECURITY_READ = "platform.security.read"
+
     @classmethod
     def all_permissions(cls) -> Set[str]:
         return {

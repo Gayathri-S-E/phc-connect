@@ -14,6 +14,8 @@ from app.api.v1.pharmacist_portal import router as pharmacist_portal_router
 from app.api.v1.lab_portal import router as lab_portal_router
 from app.api.v1.facility_admin_portal import router as facility_admin_portal_router
 from app.api.v1.intelligence import router as intelligence_router
+from app.api.v1.supply_chain import router as supply_chain_router
+from app.api.v1.insights import router as insights_router
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -31,3 +33,5 @@ api_router.include_router(facility_admin_portal_router)
 api_router.include_router(healthcare_router)
 api_router.include_router(pharmacy_router)
 api_router.include_router(intelligence_router)
+api_router.include_router(supply_chain_router)
+api_router.include_router(insights_router)

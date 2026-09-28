@@ -84,6 +84,48 @@ async def create_role(
     )
 
 
+@router.patch(
+    "/roles/{role_id}",
+    response_model=DataResponse[RoleResponse],
+    dependencies=[Depends(require_permission(SystemPermissions.IDENTITY_ROLE_MANAGE))],
+)
+async def update_role(
+    role_id: uuid.UUID,
+    payload: RoleUpdate,
+    current_user: AuthenticatedUserContext = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+    ctx: RequestContext = Depends(get_request_context),
+):
+    """Update role name, description, or active status."""
+    service = RoleService(session)
+    await service.update_role(
+        role_id,
+        payload,
+        actor_id=current_user.id,
+        ip_address=ctx.ip_address,
+        user_agent=ctx.user_agent,
+    )
+    role = await service.get_role(role_id)
+    perms = [
+        PermissionResponse.model_validate(rp.permission)
+        for rp in role.role_permissions
+        if rp.permission
+    ]
+    return DataResponse(
+        data=RoleResponse(
+            id=role.id,
+            name=role.name,
+            code=role.code,
+            description=role.description,
+            is_system=role.is_system,
+            is_active=role.is_active,
+            created_at=role.created_at,
+            updated_at=role.updated_at,
+            permissions=perms,
+        )
+    )
+
+
 @router.post(
     "/roles/{role_id}/permissions",
     response_model=DataResponse[RoleResponse],

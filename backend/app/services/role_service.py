@@ -2,7 +2,7 @@ import uuid
 from typing import List, Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import ConflictException, ResourceNotFoundException
+from app.core.exceptions import BadRequestException, ConflictException, ResourceNotFoundException
 from app.models.identity import Permission, Role
 from app.repositories.audit_repository import AuditRepository
 from app.repositories.role_repository import RoleRepository
@@ -67,6 +67,8 @@ class RoleService:
         user_agent: str | None = None,
     ) -> Role:
         role = await self.get_role(role_id)
+        if role.is_system and data.is_active is False:
+            raise BadRequestException("System roles cannot be deactivated.")
         old_state = {"name": role.name, "is_active": role.is_active}
 
         if data.name is not None:

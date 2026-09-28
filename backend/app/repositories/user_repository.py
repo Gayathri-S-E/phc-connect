@@ -93,12 +93,12 @@ class UserRepository:
             UserRole.role_id == role_id,
         )
         res = await self.session.execute(stmt)
-        user_role = res.scalar_one_or_none()
-        if user_role:
+        user_roles = res.scalars().all()
+        for user_role in user_roles:
             await self.session.delete(user_role)
+        if user_roles:
             await self.session.flush()
-            return True
-        return False
+        return bool(user_roles)
 
     async def create_session(self, session_obj: UserSession) -> UserSession:
         self.session.add(session_obj)
