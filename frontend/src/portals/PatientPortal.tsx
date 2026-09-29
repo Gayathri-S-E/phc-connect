@@ -74,16 +74,23 @@ export default function PatientPortal() {
 
   const handleBookAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!profile?.primary_facility_id && !profile?.id) return;
+    if (!profile?.primary_facility_id || !profile?.id) {
+      alert('Patient profile or primary facility information is missing.');
+      return;
+    }
 
     setIsSubmitting(true);
     try {
+      const slot = bookSlot.length === 5 ? `${bookSlot}:00` : bookSlot;
+      const isoDate = `${bookDate}T${slot}`;
+
       const payload = {
         patient_id: profile.id,
         facility_id: profile.primary_facility_id,
-        appointment_date: bookDate,
-        slot_time: bookSlot,
-        reason_for_visit: bookReason,
+        appointment_date: isoDate,
+        time_slot: slot,
+        reason: bookReason,
+        priority: 'ROUTINE',
       };
 
       const res = await api.post<any>('/patients/me/appointments', payload);
@@ -93,6 +100,8 @@ export default function PatientPortal() {
       } else {
         alert(res.error?.detail || 'Failed to book appointment.');
       }
+    } catch (err: any) {
+      alert(err?.detail || 'An error occurred while booking.');
     } finally {
       setIsSubmitting(false);
     }
@@ -597,7 +606,7 @@ export default function PatientPortal() {
                 #{bookingSuccess.token_number}
               </div>
               <div style={{ fontSize: '0.85rem', marginTop: '0.5rem' }}>
-                Date: <strong>{bookingSuccess.appointment_date}</strong> at <strong>{bookingSuccess.slot_time}</strong>
+                Date: <strong>{new Date(bookingSuccess.appointment_date).toLocaleDateString()}</strong> at <strong>{bookingSuccess.time_slot || bookingSuccess.slot_time}</strong>
               </div>
             </div>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>

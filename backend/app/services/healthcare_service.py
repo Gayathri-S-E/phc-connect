@@ -369,28 +369,41 @@ class HealthcareService:
         patient = await self.get_patient(patient_id)
 
         # If linked to appointment, check and update appointment status
+        existing_consultation = None
         if data.appointment_id:
             appt = await self.repo.get_appointment_by_id(data.appointment_id)
             if appt:
                 appt.status = AppointmentStatus.IN_CONSULTATION
+            existing_consultation = await self.repo.get_consultation_by_appointment(data.appointment_id)
 
-        vitals_dict = data.triage_vitals.model_dump() if data.triage_vitals else None
+        if existing_consultation:
+            existing_consultation.doctor_id = doctor_id
+            existing_consultation.status = ConsultationStatus.IN_PROGRESS
+            if data.chief_complaint:
+                existing_consultation.chief_complaint = data.chief_complaint
+            if data.clinical_notes:
+                existing_consultation.clinical_notes = data.clinical_notes
+            if data.examination_findings:
+                existing_consultation.examination_findings = data.examination_findings
+            await self.repo.session.flush()
+            consultation = existing_consultation
+        else:
+            vitals_dict = data.triage_vitals.model_dump() if data.triage_vitals else None
+            consultation = Consultation(
+                appointment_id=data.appointment_id,
+                patient_id=patient_id,
+                doctor_id=doctor_id,
+                facility_id=facility_id,
+                status=ConsultationStatus.IN_PROGRESS,
+                triage_vitals=vitals_dict,
+                chief_complaint=data.chief_complaint,
+                clinical_notes=data.clinical_notes,
+                examination_findings=data.examination_findings,
+                started_at=datetime.now(timezone.utc),
+            )
+            await self.repo.create_consultation(consultation)
 
-        consultation = Consultation(
-            appointment_id=data.appointment_id,
-            patient_id=patient_id,
-            doctor_id=doctor_id,
-            facility_id=facility_id,
-            status=ConsultationStatus.IN_PROGRESS,
-            triage_vitals=vitals_dict,
-            chief_complaint=data.chief_complaint,
-            clinical_notes=data.clinical_notes,
-            examination_findings=data.examination_findings,
-            started_at=datetime.now(timezone.utc),
-        )
-        await self.repo.create_consultation(consultation)
-
-        if data.triage_vitals:
+        if data.triage_vitals and not existing_consultation:
             v_rec = Vitals(
                 consultation_id=consultation.id,
                 systolic_bp=data.triage_vitals.systolic_bp,

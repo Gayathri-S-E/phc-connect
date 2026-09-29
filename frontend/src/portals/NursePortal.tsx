@@ -97,14 +97,18 @@ export default function NursePortal() {
 
     setIsSubmitting(true);
     try {
+      const tempNum = Number(temperature);
+      const tempCelsius = tempNum > 45 ? Math.round(((tempNum - 32) * 5 / 9) * 10) / 10 : tempNum;
+
       const payload = {
-        systolic_bp: Number(systolic),
-        diastolic_bp: Number(diastolic),
-        heart_rate: Number(heartRate),
-        respiratory_rate: Number(respRate),
-        temperature: Number(temperature),
-        spo2: Number(spo2),
-        blood_sugar: Number(bloodSugar),
+        systolic_bp: systolic ? Number(systolic) : undefined,
+        diastolic_bp: diastolic ? Number(diastolic) : undefined,
+        pulse_rate: heartRate ? Number(heartRate) : undefined,
+        respiratory_rate: respRate ? Number(respRate) : undefined,
+        temperature_celsius: tempCelsius,
+        spo2_percent: spo2 ? Number(spo2) : undefined,
+        triage_level: 'ROUTINE',
+        triage_notes: bloodSugar ? `Random Blood Sugar: ${bloodSugar} mg/dL` : undefined,
       };
 
       const res = await api.post(`/nurse/triage/vitals?appointment_id=${selectedAppt.appointment_id}`, payload);
@@ -115,6 +119,8 @@ export default function NursePortal() {
       } else {
         alert(res.error?.detail || 'Failed to record vitals.');
       }
+    } catch (err: any) {
+      alert(err?.detail || 'Failed to record vitals.');
     } finally {
       setIsSubmitting(false);
     }
@@ -130,6 +136,7 @@ export default function NursePortal() {
         date_of_birth: intakeDob,
         gender: intakeGender,
         phone_number: intakePhone || '+919999999999',
+        primary_facility_id: user?.facility_id,
       });
 
       if (res.data) {
@@ -140,6 +147,8 @@ export default function NursePortal() {
       } else {
         alert(res.error?.detail || 'Intake failed.');
       }
+    } catch (err: any) {
+      alert(err?.detail || 'Intake failed.');
     } finally {
       setIsSubmitting(false);
     }

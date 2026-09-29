@@ -126,7 +126,7 @@ export default function DoctorPortal() {
       const res = await api.post<any>('/doctor/consultations', {
         patient_id: patientItem.patient_id,
         appointment_id: patientItem.appointment_id,
-        chief_complaints: patientItem.reason_for_visit || 'General consultation',
+        chief_complaint: patientItem.reason || patientItem.reason_for_visit || 'General consultation',
       });
       if (res.data) {
         setActiveConsultation(res.data);
@@ -162,25 +162,48 @@ export default function DoctorPortal() {
     }
   };
 
+  const DIAGNOSIS_NAMES: Record<string, string> = {
+    'J18.9': 'Pneumonia, unspecified organism',
+    'J00': 'Acute nasopharyngitis (Common Cold)',
+    'A09': 'Infectious gastroenteritis and colitis',
+    'I10': 'Essential (primary) hypertension',
+    'E11': 'Type 2 diabetes mellitus',
+    'A90': 'Dengue fever',
+  };
+
   const handleFinalizeConsultation = async () => {
     if (!activeConsultation?.id) return;
     setIsSubmitting(true);
 
     try {
       // 1. Finalize consultation
-      await api.post(`/doctor/consultations/${activeConsultation.id}/finalize`, {
-        examination_notes: examinationNotes || 'Patient examined. Symptoms recorded.',
-        diagnosis_codes: [selectedDiagnosis],
-        outcome: 'CONSULTED_PRESCRIBED',
+      const conditionName = DIAGNOSIS_NAMES[selectedDiagnosis] || 'Primary condition';
+      const finalizeRes = await api.post(`/doctor/consultations/${activeConsultation.id}/finalize`, {
+        clinical_notes: chiefComplaints || 'General consultation encounter',
+        examination_findings: examinationNotes || 'Patient examined. Symptoms recorded.',
+        diagnoses: [
+          {
+            icd10_code: selectedDiagnosis,
+            condition_name: conditionName,
+            diagnosis_type: 'PRIMARY',
+            notes: examinationNotes || undefined,
+          },
+        ],
       });
+
+      if (finalizeRes.error) {
+        alert(finalizeRes.error.detail || 'Failed to finalize consultation encounter.');
+        return;
+      }
 
       // 2. Issue Prescription if items added
       if (prescriptionItems.length > 0) {
-        await api.post('/doctor/prescriptions', {
+        const rxRes = await api.post('/doctor/prescriptions', {
           consultation_id: activeConsultation.id,
-          patient_id: selectedPatient.patient_id,
+          notes: 'Standard PHC outpatient electronic prescription',
           items: prescriptionItems.map((item) => ({
             medication_id: item.medication_id,
+            medication_name: item.medication_name || 'Prescribed Medicine',
             dosage: item.dosage,
             frequency: item.frequency,
             duration_days: item.duration_days,
@@ -188,28 +211,30 @@ export default function DoctorPortal() {
             quantity_prescribed: item.duration_days * 3,
           })),
         });
+        if (rxRes.error) {
+          alert(rxRes.error.detail || 'Failed to create electronic prescription.');
+        }
       }
 
       // 3. Issue Lab Orders if tests selected
       if (orderedLabs.length > 0) {
-        await api.post('/doctor/labs', {
-          consultation_id: activeConsultation.id,
-          patient_id: selectedPatient.patient_id,
-          test_names: orderedLabs,
-          priority: labPriority,
-          clinical_indication: chiefComplaints,
-        });
+        for (const testName of orderedLabs) {
+          await api.post('/doctor/labs', {
+            consultation_id: activeConsultation.id,
+            test_category: testName,
+            clinical_notes: chiefComplaints || 'Routine diagnostic evaluation',
+          });
+        }
       }
 
       // 4. Issue Referral if specified
       if (referralReason.trim()) {
         await api.post('/doctor/referrals', {
           consultation_id: activeConsultation.id,
-          patient_id: selectedPatient.patient_id,
-          target_facility_name: referralFacility,
-          specialty: referralSpecialty,
-          clinical_reason: referralReason,
-          urgency: 'HIGH',
+          to_facility_name: referralFacility,
+          referral_reason: referralReason,
+          urgency: 'ROUTINE',
+          clinical_summary: `Referred for ${referralSpecialty}. Chief complaint: ${chiefComplaints}`,
         });
       }
 
