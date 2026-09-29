@@ -52,10 +52,12 @@ const LoginScreen: React.FC = () => {
   const handleQuickRole = async (roleCode: string) => {
     setIsSubmitting(true);
     setLoginError(null);
-    const targetPath = await switchDemoRole(roleCode);
+    const result = await switchDemoRole(roleCode);
     setIsSubmitting(false);
-    if (targetPath && targetPath !== '/login') {
-      navigate(targetPath);
+    if (result.success && result.path && result.path !== '/login') {
+      navigate(result.path);
+    } else if (!result.success) {
+      setLoginError(result.error || 'Failed to authenticate demo account.');
     }
   };
 

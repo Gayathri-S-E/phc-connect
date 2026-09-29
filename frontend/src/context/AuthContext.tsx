@@ -92,7 +92,7 @@ interface AuthContextType {
   navItems: NavigationItem[];
   login: (email: string, password?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
-  switchDemoRole: (roleCode: string) => Promise<string>;
+  switchDemoRole: (roleCode: string) => Promise<{ success: boolean; path: string; error?: string }>;
   hasPermission: (permissionCode: string) => boolean;
   refreshUserData: () => Promise<void>;
 }
@@ -175,15 +175,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const switchDemoRole = async (roleCode: string): Promise<string> => {
+  const switchDemoRole = async (roleCode: string): Promise<{ success: boolean; path: string; error?: string }> => {
     const account = DEMO_ACCOUNTS[roleCode];
-    if (!account) return '/login';
+    if (!account) return { success: false, path: '/login', error: `Unknown role code: ${roleCode}` };
 
     const res = await login(account.email, 'Demo@Health2026');
     if (res.success) {
-      return account.defaultPath;
+      return { success: true, path: account.defaultPath };
     }
-    return '/login';
+    return { success: false, path: '/login', error: res.error || 'Authentication failed. Please ensure the backend is running.' };
   };
 
   const hasPermission = (permissionCode: string): boolean => {

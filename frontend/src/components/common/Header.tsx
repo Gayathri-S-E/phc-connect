@@ -20,8 +20,10 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
   const handleRoleChange = async (roleKey: string) => {
     setIsSwitching(true);
     try {
-      const nextPath = await switchDemoRole(roleKey);
-      navigate(nextPath);
+      const res = await switchDemoRole(roleKey);
+      if (res.success && res.path) {
+        navigate(res.path);
+      }
     } finally {
       setIsSwitching(false);
     }
