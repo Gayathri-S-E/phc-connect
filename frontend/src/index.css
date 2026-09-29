@@ -1,376 +1,113 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300..900;1,14..32,300..900&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+Tamil:wght@400;500;600;700&display=swap');
+
+/* ─── Tailwind v4 Core ─────────────────────────────────────────── */
 @import "tailwindcss";
 
-:root {
-  --primary: #2563eb;
-  --primary-light: #3b82f6;
-  --primary-dark: #1d4ed8;
-  --secondary: #10b981;
-  --bg-color: #f8fafc;
-  --bg-glass: rgba(255, 255, 255, 0.7);
-  --text-main: #0f172a;
-  --text-muted: #64748b;
-  --border-light: rgba(255, 255, 255, 0.5);
-  --border-color: #e2e8f0;
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-glass: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
-  --radius-md: 0.5rem;
-  --radius-lg: 1rem;
-  --radius-xl: 1.5rem;
-  --font-main: 'Inter', sans-serif;
+/* ─── Tailwind v4 Theme Tokens ────────────────────────────────── */
+/*
+  In Tailwind v4 the JS config file is gone.
+  All custom tokens live in @theme.
+  These generate the Tailwind utility classes:
+    bg-brand-blue, text-brand-teal, bg-brand-navy,
+    rounded-card, etc.
+*/
+@theme {
+  /* Brand Colours */
+  --color-brand-blue:   #0284c7;  /* sky-600  */
+  --color-brand-blue-dark: #0369a1; /* sky-700 */
+  --color-brand-teal:   #0d9488;  /* teal-600 */
+  --color-brand-violet: #7c3aed;  /* violet-600 */
+  --color-brand-navy:   #0f172a;  /* slate-900 */
+
+  /* Radius */
+  --radius-card: 1rem;       /* 16px  */
+  --radius-pill: 9999px;
+
+  /* Shadows */
+  --shadow-card-hover: 0 8px 24px -4px rgba(0,0,0,0.12);
+
+  /* Fonts */
+  --font-family-sans: 'Inter', 'Noto Sans Tamil', system-ui, -apple-system, sans-serif;
+  --font-family-mono: 'JetBrains Mono', ui-monospace, monospace;
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+/* ─── Scrollbar utility ───────────────────────────────────────── */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ─── HTML base ───────────────────────────────────────────────── */
+html {
+  scroll-behavior: smooth;
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
 }
 
+/*
+  NOTE: Tailwind v4 preflight handles box-sizing and most resets.
+  We only add what's missing:
+*/
+
+/* Ensure overflow-x safety globally */
 body {
-  font-family: var(--font-main);
-  background-color: var(--bg-color);
-  background-image: radial-gradient(circle at 15% 50%, rgba(37, 99, 235, 0.04), transparent 25%),
-                    radial-gradient(circle at 85% 30%, rgba(16, 185, 129, 0.04), transparent 25%);
-  color: var(--text-main);
-  line-height: 1.5;
+  overflow-x: hidden;
+  max-width: 100vw;
+  font-family: var(--font-family-sans);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: #0f172a;
+  background-color: #f8fafc;
+  line-height: 1.5;
+}
+
+/*
+  CRITICAL FIX (RC-2):
+  Do NOT reset `button { background: none; border: none }` globally.
+  That rule destroys all Tailwind bg-* utilities on <button> elements.
+  Instead, only reset button chrome where needed (via a utility class).
+*/
+button {
+  font-family: inherit;
+  cursor: pointer;
+  /* No background/border reset here — it breaks Tailwind utility classes */
+}
+
+/* Button-reset utility for buttons that genuinely want no chrome */
+.btn-reset {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
 }
 
 a {
-  text-decoration: none;
   color: inherit;
+  text-decoration: none;
 }
 
-button {
-  font-family: inherit;
-  border: none;
-  background: none;
-  cursor: pointer;
-  outline: none;
+/* ─── Custom scrollbars ───────────────────────────────────────── */
+::-webkit-scrollbar         { width: 6px; height: 6px; }
+::-webkit-scrollbar-track   { background: transparent; }
+::-webkit-scrollbar-thumb   { background: #cbd5e1; border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* ─── Focus ring (WCAG AA) ────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid #0284c7;
+  outline-offset: 2px;
 }
 
-.app-container {
-  display: flex;
-  height: 100vh;
-  overflow: hidden;
-}
-
-/* Sidebar */
-.sidebar {
-  width: 280px;
-  background: var(--bg-glass);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-right: 1px solid var(--border-light);
-  display: flex;
-  flex-direction: column;
-  padding: 1.5rem 1rem;
-  box-shadow: var(--shadow-glass);
-  z-index: 10;
-  transition: transform 0.3s ease;
-}
-
-.sidebar-header {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding-bottom: 2rem;
-  margin-bottom: 1rem;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.sidebar-logo {
-  width: 40px;
-  height: 40px;
-  background: linear-gradient(135deg, var(--primary), var(--secondary));
-  border-radius: var(--radius-md);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-weight: bold;
-  font-size: 1.25rem;
-}
-
-.sidebar-title {
-  font-weight: 700;
-  font-size: 1.1rem;
-  color: var(--text-main);
-  line-height: 1.2;
-}
-
-.sidebar-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  overflow-y: auto;
-  flex: 1;
-}
-
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  border-radius: var(--radius-md);
-  color: var(--text-muted);
-  font-weight: 500;
-  transition: all 0.2s ease;
-}
-
-.nav-item:hover {
-  background: rgba(37, 99, 235, 0.05);
-  color: var(--primary);
-}
-
-.nav-item.active {
-  background: linear-gradient(90deg, rgba(37, 99, 235, 0.1), transparent);
-  color: var(--primary);
-  border-left: 3px solid var(--primary);
-}
-
-.nav-icon {
-  width: 20px;
-  height: 20px;
-}
-
-/* Main Content */
-.main-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.top-bar {
-  height: 72px;
-  background: var(--bg-glass);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--border-light);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 2rem;
-  z-index: 5;
-}
-
-.page-title {
-  font-size: 1.25rem;
-  font-weight: 600;
-}
-
-.top-bar-actions {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.icon-button {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: white;
-  box-shadow: var(--shadow-sm);
-  color: var(--text-muted);
-  transition: all 0.2s;
-}
-
-.icon-button:hover {
-  color: var(--primary);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-}
-
-.user-profile {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  background: white;
-  padding: 0.5rem 1rem 0.5rem 0.5rem;
-  border-radius: 2rem;
-  box-shadow: var(--shadow-sm);
-  cursor: pointer;
-}
-
-.avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: var(--primary-light);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  font-size: 0.875rem;
-}
-
-.user-info {
-  display: flex;
-  flex-direction: column;
-}
-
-.user-name {
-  font-size: 0.875rem;
-  font-weight: 600;
-  line-height: 1;
-}
-
-.user-role {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  margin-top: 0.25rem;
-}
-
-.page-content {
-  flex: 1;
-  overflow-y: auto;
-  padding: 2rem;
-}
-
-/* Dashboard Cards */
-.dashboard-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 2rem;
-}
-
-.glass-card {
-  background: var(--bg-glass);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-xl);
-  padding: 1.5rem;
-  box-shadow: var(--shadow-glass);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-
-.glass-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.1);
-}
-
-.card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1rem;
-}
-
-.card-title {
-  font-weight: 600;
-  font-size: 1.1rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.card-icon {
-  padding: 0.5rem;
-  border-radius: var(--radius-md);
-  background: rgba(37, 99, 235, 0.1);
-  color: var(--primary);
-}
-
-.card-icon.success {
-  background: rgba(16, 185, 129, 0.1);
-  color: var(--secondary);
-}
-
-.card-value {
-  font-size: 2rem;
-  font-weight: 700;
-  margin-bottom: 0.25rem;
-}
-
-.card-desc {
-  font-size: 0.875rem;
-  color: var(--text-muted);
-}
-
-/* Quick Actions */
-.quick-actions {
-  display: flex;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, var(--primary), var(--primary-light));
-  color: white;
-  padding: 0.75rem 1.5rem;
-  border-radius: var(--radius-md);
-  font-weight: 500;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  transition: all 0.2s;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
-}
-
-.btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
-}
-
-.btn-secondary {
-  background: white;
-  color: var(--text-main);
-  padding: 0.75rem 1.5rem;
-  border-radius: var(--radius-md);
-  font-weight: 500;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  border: 1px solid var(--border-color);
-  transition: all 0.2s;
-}
-
-.btn-secondary:hover {
-  background: #f1f5f9;
-}
-
-/* Animations */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.animate-fade-in {
-  animation: fadeIn 0.4s ease forwards;
-}
-
-.stagger-1 { animation-delay: 0.1s; }
-.stagger-2 { animation-delay: 0.2s; }
-.stagger-3 { animation-delay: 0.3s; }
-
-/* Responsive */
-.menu-toggle {
-  display: none;
-}
-
-@media (max-width: 768px) {
-  .sidebar {
-    position: absolute;
-    transform: translateX(-100%);
+/* ─── Reduced motion ──────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
-  
-  .sidebar.open {
-    transform: translateX(0);
-  }
-  
-  .menu-toggle {
-    display: block;
-  }
-  
-  .page-content {
-    padding: 1rem;
-  }
+}
+
+/* ─── Tamil text legibility ───────────────────────────────────── */
+:lang(ta), .tamil {
+  font-family: 'Noto Sans Tamil', sans-serif;
+  leading-trim: normal;
+  line-height: 1.8;
 }

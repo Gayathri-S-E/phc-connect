@@ -12,7 +12,7 @@ interface BadgeProps {
 
 export const Badge: React.FC<BadgeProps> = ({ status, label, size = 'md' }) => {
   const s = (status || '').toUpperCase();
-  const displayLabel = label || status.replace(/_/g, ' ');
+  const displayLabel = label || status.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 
   let bg = 'rgba(100, 116, 139, 0.15)';
   let color = '#475569';

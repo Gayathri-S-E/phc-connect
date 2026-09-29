@@ -25,9 +25,8 @@ export default function PatientPortal() {
   // Booking Modal State
   const [isBookModalOpen, setIsBookModalOpen] = useState(false);
   const [bookDate, setBookDate] = useState(() => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    return tomorrow.toISOString().split('T')[0];
+    const today = new Date();
+    return today.toISOString().split('T')[0];
   });
   const [bookSlot, setBookSlot] = useState('09:30:00');
   const [bookReason, setBookReason] = useState('Routine Checkup');

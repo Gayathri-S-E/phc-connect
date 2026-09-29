@@ -317,6 +317,29 @@ class HealthcareService:
         if data.cancellation_reason:
             appt.cancellation_reason = data.cancellation_reason
 
+        # Generate in-app PatientNotification for cross-role visibility
+        try:
+            status_labels = {
+                AppointmentStatus.CHECKED_IN: ("Checked In", "சரிபார்க்கப்பட்டது"),
+                AppointmentStatus.IN_CONSULTATION: ("In Consultation", "ஆலோசனையில்"),
+                AppointmentStatus.COMPLETED: ("Consultation Completed", "ஆலோசனை முடிந்தது"),
+                AppointmentStatus.CANCELLED: ("Appointment Cancelled", "சந்திப்பு ரத்து செய்யப்பட்டது"),
+            }
+            if data.status in status_labels:
+                label_en, label_ta = status_labels[data.status]
+                notification = PatientNotification(
+                    patient_id=appt.patient_id,
+                    title_en=f"Appointment Status Update: {label_en}",
+                    title_ta=f"சந்திப்பு நிலை புதுப்பிப்பு: {label_ta}",
+                    message_en=f"Your appointment status has been updated to '{label_en}'.",
+                    message_ta=f"உங்கள் சந்திப்பு நிலை '{label_ta}' என மாற்றப்பட்டுள்ளது.",
+                    notification_type="APPOINTMENT",
+                    reference_id=str(appt.id),
+                )
+                await self.repo.create_patient_notification(notification)
+        except Exception:
+            pass
+
         await self.audit_repo.record_event(
             action="APPOINTMENT_STATUS_UPDATED",
             resource_type="appointment",
@@ -972,6 +995,22 @@ class HealthcareService:
         order.completed_at = now
         await self.session.flush()
 
+        # Generate in-app PatientNotification for lab result release
+        try:
+            test_names = ", ".join(r.test_name for r in order.results) if order.results else "Diagnostic Test"
+            notification = PatientNotification(
+                patient_id=order.patient_id,
+                title_en=f"Lab Results Ready: {test_names}",
+                title_ta=f"ஆய்வக முடிவுகள் தயார்: {test_names}",
+                message_en=f"Your diagnostic laboratory test report for {test_names} has been finalized and verified.",
+                message_ta=f"{test_names} க்கான உங்கள் ஆய்வக சோதனை அறிக்கை முடிவடைந்து சரிபார்க்கப்பட்டது.",
+                notification_type="LAB_RESULT",
+                reference_id=str(order.id),
+            )
+            await self.repo.create_patient_notification(notification)
+        except Exception:
+            pass
+
         await self.audit_repo.record_event(
             action="LAB_ORDER_VERIFIED",
             resource_type="lab_order",
@@ -1508,9 +1547,6 @@ class HealthcareService:
         doctor_id: Optional[uuid.UUID] = None,
         target_date: Optional[date] = None,
     ) -> List[DoctorOPDQueueItem]:
-        if target_date is None:
-            target_date = datetime.now(timezone.utc).date()
-
         appointments = await self.repo.list_opd_queue(
             facility_id=facility_id,
             target_date=target_date,

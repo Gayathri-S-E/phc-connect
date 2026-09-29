@@ -6,6 +6,9 @@ import {
 import { useAuth, DEMO_ACCOUNTS } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useNavigate } from 'react-router-dom';
+import { Button } from '../ui/button';
+import { Badge } from '../ui/badge';
+import { formatRoleName } from '../../utils/formatters';
 
 interface HeaderProps {
   onToggleSidebar?: () => void;
@@ -35,62 +38,29 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
   };
 
   return (
-    <header
-      style={{
-        height: '64px',
-        backgroundColor: '#ffffff',
-        borderBottom: '1px solid var(--border-color)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 1.25rem',
-        position: 'sticky',
-        top: 0,
-        zIndex: 100,
-        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)',
-      }}
-    >
+    <header className="h-16 bg-white border-b border-slate-200/90 flex items-center justify-between px-4 sm:px-6 sticky top-0 z-40 shadow-xs">
       {/* Left: Brand & Mobile Menu */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+      <div className="flex items-center gap-3">
         {onToggleSidebar && (
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={onToggleSidebar}
             aria-label="Toggle navigation menu"
-            className="btn-icon"
-            style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              color: 'var(--text-main)',
-              display: 'flex',
-              padding: '0.4rem',
-              borderRadius: '6px',
-            }}
+            className="lg:hidden text-slate-700"
           >
-            <Menu size={22} />
-          </button>
+            <Menu className="w-5 h-5" />
+          </Button>
         )}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-          <div
-            style={{
-              width: '38px',
-              height: '38px',
-              borderRadius: '10px',
-              background: 'linear-gradient(135deg, var(--primary) 0%, #1e40af 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#ffffff',
-              boxShadow: '0 4px 6px -1px rgba(37, 99, 235, 0.3)',
-            }}
-          >
-            <Activity size={22} />
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-600 to-teal-500 flex items-center justify-center text-white shadow-xs font-black shrink-0">
+            <Activity className="w-5 h-5" />
           </div>
           <div>
-            <h1 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-main)', lineHeight: 1.2 }}>
+            <h1 className="text-base font-extrabold text-slate-900 leading-tight">
               {t('app.title')}
             </h1>
-            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+            <span className="text-[11px] text-slate-500 font-medium">
               {t('app.subtitle')}
             </span>
           </div>
@@ -98,112 +68,65 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
       </div>
 
       {/* Right Controls */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-        {/* Role Switcher Dropdown (Dev & Demo Feature) */}
-        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+      <div className="flex items-center gap-2.5">
+        {/* Role Switcher Dropdown */}
+        <div className="relative flex items-center">
           <select
             value={activeRole || 'PATIENT'}
             onChange={(e) => handleRoleChange(e.target.value)}
             disabled={isSwitching}
             aria-label={t('nav.switchRole')}
-            style={{
-              padding: '0.4rem 1.85rem 0.4rem 0.75rem',
-              borderRadius: '8px',
-              border: '1px solid rgba(37, 99, 235, 0.3)',
-              backgroundColor: 'rgba(37, 99, 235, 0.05)',
-              color: 'var(--primary)',
-              fontWeight: 600,
-              fontSize: '0.825rem',
-              cursor: 'pointer',
-              appearance: 'none',
-              outline: 'none',
-            }}
+            className="pl-3 pr-8 py-1.5 rounded-lg border border-sky-200 bg-sky-50/70 text-sky-900 font-bold text-xs cursor-pointer appearance-none outline-none hover:bg-sky-100 transition"
           >
             {Object.entries(DEMO_ACCOUNTS).map(([key, acc]) => (
               <option key={key} value={key}>
-                {acc.name}
+                {acc.name} ({formatRoleName(key)})
               </option>
             ))}
           </select>
-          <div style={{ position: 'absolute', right: '0.5rem', pointerEvents: 'none', color: 'var(--primary)' }}>
-            {isSwitching ? <RefreshCw size={13} className="animate-spin" /> : <ChevronDown size={14} />}
+          <div className="absolute right-2.5 pointer-events-none text-sky-600">
+            {isSwitching ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </div>
         </div>
 
         {/* Scope Pill Badge */}
         {scope && (
-          <span
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.3rem',
-              fontSize: '0.75rem',
-              padding: '0.25rem 0.6rem',
-              borderRadius: '6px',
-              backgroundColor: 'rgba(100, 116, 139, 0.1)',
-              color: '#334155',
-              fontWeight: 600,
-            }}
-          >
-            <ShieldCheck size={13} style={{ color: 'var(--primary)' }} />
+          <Badge variant="slate" className="hidden md:inline-flex text-[11px] font-bold">
+            <ShieldCheck className="w-3.5 h-3.5 text-sky-600" />
             {scope}
-          </span>
+          </Badge>
         )}
 
         {/* Language Switcher */}
-        <button
+        <Button
+          variant="outline"
+          size="sm"
           onClick={() => setLanguage(language === 'en' ? 'ta' : 'en')}
-          className="btn-secondary"
           title="Toggle English / தமிழ்"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.35rem',
-            padding: '0.35rem 0.65rem',
-            fontSize: '0.8rem',
-            fontWeight: 600,
-          }}
+          className="text-xs font-bold"
         >
-          <Globe size={14} />
+          <Globe className="w-3.5 h-3.5 text-sky-600" />
           {language === 'en' ? 'தமிழ்' : 'English'}
-        </button>
+        </Button>
 
         {/* User Profile / Logout */}
         {user && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: '0.25rem' }}>
+          <div className="flex items-center gap-2 pl-1 border-l border-slate-200">
             <div
               title={user.email}
-              style={{
-                width: '34px',
-                height: '34px',
-                borderRadius: '50%',
-                backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--primary)',
-                fontWeight: 700,
-                fontSize: '0.85rem',
-              }}
+              className="w-8 h-8 rounded-full bg-sky-100 text-sky-700 flex items-center justify-center font-bold text-xs border border-sky-200"
             >
-              <User size={16} />
+              <User className="w-4 h-4" />
             </div>
-            <button
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={handleLogout}
-              className="btn-icon"
               title={t('nav.logout')}
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'var(--text-muted)',
-                padding: '0.4rem',
-                borderRadius: '6px',
-                display: 'flex',
-              }}
+              className="text-slate-500 hover:text-red-600"
             >
-              <LogOut size={18} />
-            </button>
+              <LogOut className="w-4 h-4" />
+            </Button>
           </div>
         )}
       </div>

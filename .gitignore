@@ -1,9 +1,11 @@
 # Environments
 .venv/
 env/
+env
 venv/
 ENV/
 *.env
+env.*
 !.env.example
 
 # Python cache & artifacts

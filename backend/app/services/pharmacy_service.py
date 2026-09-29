@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import BadRequestException, PermissionDeniedException, ResourceNotFoundException
-from app.models.healthcare import Medication, Prescription, PrescriptionItem, PrescriptionItemStatus, PrescriptionStatus
+from app.models.healthcare import Medication, PatientNotification, Prescription, PrescriptionItem, PrescriptionItemStatus, PrescriptionStatus
 from app.models.pharmacy import (
     BatchStatus,
     DispensingAllocation,
@@ -461,6 +461,23 @@ class PharmacyService:
                 rx.status = PrescriptionStatus.COMPLETED
             elif any_dispensed:
                 rx.status = PrescriptionStatus.PARTIALLY_DISPENSED
+
+            # Create in-app PatientNotification for prescription dispensing
+            try:
+                rx_title = "Prescription Dispensed" if rx.status == PrescriptionStatus.COMPLETED else "Prescription Partially Dispensed"
+                rx_title_ta = "மருந்து வழங்கப்பட்டது" if rx.status == PrescriptionStatus.COMPLETED else "மருந்து பகுதி வழங்கப்பட்டது"
+                notification = PatientNotification(
+                    patient_id=rx.patient_id,
+                    title_en=rx_title,
+                    title_ta=rx_title_ta,
+                    message_en="Your prescribed medications have been processed and dispensed at the pharmacy.",
+                    message_ta="உங்களுக்கு பரிந்துரைக்கப்பட்ட மருந்துகள் மருந்தகத்தில் வழங்கப்பட்டன.",
+                    notification_type="PRESCRIPTION",
+                    reference_id=str(rx.id),
+                )
+                self.session.add(notification)
+            except Exception:
+                pass
 
             await self.audit_repo.record_event(
                 action="PRESCRIPTION_DISPENSED_FEFO",

@@ -102,12 +102,8 @@ class HealthcareRepository:
         return appointment
 
     async def get_next_token_number(self, facility_id: uuid.UUID, appt_date: datetime) -> int:
-        start_of_day = appt_date.replace(hour=0, minute=0, second=0, microsecond=0)
-        end_of_day = appt_date.replace(hour=23, minute=59, second=59, microsecond=999999)
         stmt = select(func.max(Appointment.token_number)).where(
             Appointment.facility_id == facility_id,
-            Appointment.appointment_date >= start_of_day,
-            Appointment.appointment_date <= end_of_day,
         )
         res = await self.session.execute(stmt)
         max_token = res.scalar()
@@ -592,15 +588,10 @@ class HealthcareRepository:
             else_=3,
         )
 
-        start_of_day = datetime(target_date.year, target_date.month, target_date.day, 0, 0, 0, tzinfo=timezone.utc)
-        end_of_day = start_of_day + timedelta(days=1)
-
         stmt = (
             select(Appointment)
             .where(
                 Appointment.facility_id == facility_id,
-                Appointment.appointment_date >= start_of_day,
-                Appointment.appointment_date < end_of_day,
                 Appointment.status.in_(statuses),
             )
             .options(
@@ -608,6 +599,14 @@ class HealthcareRepository:
                 selectinload(Appointment.consultation).selectinload(Consultation.vitals_records),
             )
         )
+
+        if target_date is not None:
+            start_of_day = datetime(target_date.year, target_date.month, target_date.day, 0, 0, 0, tzinfo=timezone.utc)
+            end_of_day = start_of_day + timedelta(days=1)
+            stmt = stmt.where(
+                Appointment.appointment_date >= start_of_day,
+                Appointment.appointment_date < end_of_day,
+            )
 
         if doctor_id:
             # Allow appointment assigned to this doctor or unassigned (general queue)
