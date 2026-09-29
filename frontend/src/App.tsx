@@ -1,4 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import DoctorDashboard from './DoctorDashboard';
+import NurseDashboard from './NurseDashboard';
+import PharmacistDashboard from './PharmacistDashboard';
+import AdminDashboard from './AdminDashboard';
 import { 
   Home, User, Calendar, MessageSquare, Menu, 
   Loader, Send, FilePlus
@@ -92,9 +96,17 @@ const AiAssistant = () => {
   );
 };
 
-const Appointments = () => {
+const Appointments = ({ user }: { user?: any }) => {
   const [appointments, setAppointments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [facilities, setFacilities] = useState<any[]>([]);
+  const [newAppt, setNewAppt] = useState({
+    facility_id: '',
+    appointment_date: new Date().toISOString().slice(0, 16),
+    reason: '',
+    priority: 'ROUTINE'
+  });
 
   const fetchAppointments = async () => {
     setLoading(true);
@@ -111,8 +123,25 @@ const Appointments = () => {
     }
   };
 
+  const fetchFacilities = async () => {
+    try {
+      // The API base is handled by fetchWithAuth but the path is just /facilities
+      const response = await fetchWithAuth('/facilities');
+      if (response.ok) {
+        const data = await response.json();
+        setFacilities(data.data || []);
+        if (data.data && data.data.length > 0) {
+          setNewAppt(prev => ({ ...prev, facility_id: data.data[0].id }));
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch facilities", error);
+    }
+  };
+
   useEffect(() => {
     fetchAppointments();
+    fetchFacilities();
   }, []);
 
   const handleCancel = async (id: string) => {
@@ -124,11 +153,43 @@ const Appointments = () => {
     }
   };
 
+  const handleBook = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      if (!newAppt.facility_id) {
+        alert("No facility available to book. Please contact support.");
+        return;
+      }
+      const payload = {
+        patient_id: user?.id || "00000000-0000-0000-0000-000000000000",
+        facility_id: newAppt.facility_id,
+        appointment_date: new Date(newAppt.appointment_date).toISOString(),
+        reason: newAppt.reason,
+        priority: newAppt.priority
+      };
+      const response = await fetchWithAuth('/patients/me/appointments', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      if (response.ok) {
+        setShowModal(false);
+        setNewAppt({ facility_id: facilities[0]?.id || '', appointment_date: new Date().toISOString().slice(0, 16), reason: '', priority: 'ROUTINE' });
+        fetchAppointments();
+      } else {
+        const errorText = await response.text();
+        alert(`Failed to book appointment: ${errorText}`);
+      }
+    } catch (error) {
+      console.error(error);
+      alert(`Failed to book appointment: ${(error as any).message}`);
+    }
+  };
+
   return (
     <div className="animate-fade-in">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <h2 style={{ fontSize: '1.5rem', fontWeight: '600' }}>My Appointments</h2>
-        <button className="btn-primary" onClick={() => alert('Booking logic integration pending.')}><FilePlus size={18} /> Book New Appointment</button>
+        <button className="btn-primary" onClick={() => setShowModal(true)}><FilePlus size={18} /> Book New Appointment</button>
       </div>
       
       {loading ? (
@@ -156,11 +217,49 @@ const Appointments = () => {
           </div>
         ))
       )}
+
+      {showModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div className="glass-card" style={{ width: '400px', padding: '2rem' }}>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem' }}>Book New Appointment</h3>
+            <form onSubmit={handleBook} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: '500' }}>Facility</label>
+                <select value={newAppt.facility_id} onChange={e => setNewAppt({...newAppt, facility_id: e.target.value})} style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-color)' }} required>
+                  {facilities.map(f => (
+                    <option key={f.id} value={f.id}>{f.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: '500' }}>Date & Time</label>
+                <input type="datetime-local" value={newAppt.appointment_date} onChange={e => setNewAppt({...newAppt, appointment_date: e.target.value})} style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-color)' }} required />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: '500' }}>Reason</label>
+                <input type="text" value={newAppt.reason} onChange={e => setNewAppt({...newAppt, reason: e.target.value})} placeholder="e.g., Fever and cough" style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-color)' }} required minLength={2} />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: '500' }}>Priority</label>
+                <select value={newAppt.priority} onChange={e => setNewAppt({...newAppt, priority: e.target.value})} style={{ width: '100%', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)', background: 'var(--bg-color)', color: 'var(--text-color)' }}>
+                  <option value="ROUTINE">Routine</option>
+                  <option value="URGENT">Urgent</option>
+                  <option value="EMERGENCY">Emergency</option>
+                </select>
+              </div>
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                <button type="button" onClick={() => setShowModal(false)} className="btn-secondary" style={{ flex: 1 }}>Cancel</button>
+                <button type="submit" className="btn-primary" style={{ flex: 1 }}>Book</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-const Profile = () => {
+const Profile = ({ user: _user }: { user?: any }) => {
   const [profile, setProfile] = useState<any>({ first_name: '', last_name: '', blood_group: '', preferred_language: 'en' });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -187,9 +286,15 @@ const Profile = () => {
     setSaving(true);
     setMsg('');
     try {
+      const { first_name, last_name, phone_number, address, emergency_contact_name, emergency_contact_phone, emergency_contact_relation, preferred_language, chronic_conditions, allergies } = profile;
+      const payload = { first_name, last_name, phone_number, address, emergency_contact_name, emergency_contact_phone, emergency_contact_relation, preferred_language, chronic_conditions, allergies };
+      
+      // Remove undefined values
+      Object.keys(payload).forEach(key => (payload as any)[key] === undefined && delete (payload as any)[key]);
+      
       const response = await fetchWithAuth('/patients/me', {
         method: 'PATCH',
-        body: JSON.stringify(profile)
+        body: JSON.stringify(payload)
       });
       if (response.ok) {
         setMsg('Profile saved successfully!');
@@ -251,14 +356,13 @@ const AuthWrapper = ({ children }: { children: React.ReactNode }) => {
   const [password, setPassword] = useState('password123');
   const [error, setError] = useState('');
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const loginWithCredentials = async (loginEmail: string, loginPassword: string) => {
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email: loginEmail, password: loginPassword })
       });
       if (res.ok) {
         const data = await res.json();
@@ -272,6 +376,11 @@ const AuthWrapper = ({ children }: { children: React.ReactNode }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await loginWithCredentials(email, password);
   };
 
   const handleRegister = async () => {
@@ -325,11 +434,11 @@ const AuthWrapper = ({ children }: { children: React.ReactNode }) => {
           <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
             <p style={{ fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.75rem', textAlign: 'center', color: 'var(--text-muted)' }}>Quick Demo Logins</p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', justifyContent: 'center' }}>
-              <button type="button" onClick={() => {setEmail('patient@demo.smarthealth.com'); setPassword('Demo@Health2026');}} className="btn-secondary" style={{ fontSize: '0.75rem', padding: '0.5rem' }}>Patient</button>
-              <button type="button" onClick={() => {setEmail('doctor@demo.smarthealth.com'); setPassword('Demo@Health2026');}} className="btn-secondary" style={{ fontSize: '0.75rem', padding: '0.5rem' }}>Doctor</button>
-              <button type="button" onClick={() => {setEmail('nurse@demo.smarthealth.com'); setPassword('Demo@Health2026');}} className="btn-secondary" style={{ fontSize: '0.75rem', padding: '0.5rem' }}>Nurse</button>
-              <button type="button" onClick={() => {setEmail('state.health.admin@demo.smarthealth.com'); setPassword('Demo@Health2026');}} className="btn-secondary" style={{ fontSize: '0.75rem', padding: '0.5rem' }}>Admin</button>
-              <button type="button" onClick={() => {setEmail('pharmacist@demo.smarthealth.com'); setPassword('Demo@Health2026');}} className="btn-secondary" style={{ fontSize: '0.75rem', padding: '0.5rem' }}>Pharmacy</button>
+              <button type="button" onClick={() => loginWithCredentials('patient@demo.smarthealth.com', 'Demo@Health2026')} className="btn-secondary" style={{ fontSize: '0.75rem', padding: '0.5rem' }}>Patient</button>
+              <button type="button" onClick={() => loginWithCredentials('doctor@demo.smarthealth.com', 'Demo@Health2026')} className="btn-secondary" style={{ fontSize: '0.75rem', padding: '0.5rem' }}>Doctor</button>
+              <button type="button" onClick={() => loginWithCredentials('nurse@demo.smarthealth.com', 'Demo@Health2026')} className="btn-secondary" style={{ fontSize: '0.75rem', padding: '0.5rem' }}>Nurse</button>
+              <button type="button" onClick={() => loginWithCredentials('state.health.admin@demo.smarthealth.com', 'Demo@Health2026')} className="btn-secondary" style={{ fontSize: '0.75rem', padding: '0.5rem' }}>Admin</button>
+              <button type="button" onClick={() => loginWithCredentials('pharmacist@demo.smarthealth.com', 'Demo@Health2026')} className="btn-secondary" style={{ fontSize: '0.75rem', padding: '0.5rem' }}>Pharmacy</button>
             </div>
           </div>
         </form>
@@ -340,7 +449,7 @@ const AuthWrapper = ({ children }: { children: React.ReactNode }) => {
 
 // --- MAIN APP ---
 
-function Dashboard() {
+function Dashboard({ user }: { user?: any }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
 
@@ -371,8 +480,8 @@ function Dashboard() {
           </div>
         );
       case 'ai': return <AiAssistant />;
-      case 'appointments': return <Appointments />;
-      case 'profile': return <Profile />;
+      case 'appointments': return <Appointments user={user} />;
+      case 'profile': return <Profile user={user} />;
       default: return <p>Under development</p>;
     }
   };
@@ -411,10 +520,64 @@ function Dashboard() {
   );
 }
 
+function MainApp() {
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const response = await fetchWithAuth('/auth/me');
+        if (response.ok) {
+          const data = await response.json();
+          setUser(data.data);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchUser();
+  }, []);
+
+  if (loading) return <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center' }}><Loader className="animate-spin" size={48} /></div>;
+  if (!user) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', alignItems: 'center', justifyContent: 'center', gap: '1rem' }}>
+        <h2>Failed to load user profile. Your session may have expired.</h2>
+        <button className="btn-primary" onClick={() => { localStorage.removeItem('access_token'); window.location.reload(); }}>
+          Back to Login
+        </button>
+      </div>
+    );
+  }
+
+  const isDoctor = user?.roles?.some((r: any) => typeof r === 'string' ? r.toLowerCase().includes('doctor') || r === 'MEDICAL_OFFICER' : r.role?.name?.toLowerCase().includes('doctor'));
+  const isNurse = user?.roles?.some((r: any) => typeof r === 'string' ? r.toLowerCase().includes('nurse') : r.role?.name?.toLowerCase().includes('nurse'));
+  const isPharmacist = user?.roles?.some((r: any) => typeof r === 'string' ? r.toLowerCase().includes('pharmacist') || r.toLowerCase().includes('pharmacy') : r.role?.name?.toLowerCase().includes('pharmacist') || r.role?.name?.toLowerCase().includes('pharmacy'));
+  const isAdmin = user?.roles?.some((r: any) => typeof r === 'string' ? r.toLowerCase().includes('admin') : r.role?.name?.toLowerCase().includes('admin'));
+
+  if (isDoctor) {
+    return <DoctorDashboard user={user} />;
+  }
+  if (isNurse) {
+    return <NurseDashboard user={user} />;
+  }
+  if (isPharmacist) {
+    return <PharmacistDashboard user={user} />;
+  }
+  if (isAdmin) {
+    return <AdminDashboard user={user} />;
+  }
+
+  return <Dashboard user={user} />;
+}
+
 export default function App() {
   return (
     <AuthWrapper>
-      <Dashboard />
+      <MainApp />
     </AuthWrapper>
   );
 }
