@@ -398,7 +398,10 @@ async def test_gemini_explains_only_aggregates_multilingual(async_client, db_ses
 
 
 @pytest.mark.asyncio
-async def test_gemini_degrades_gracefully_without_key_or_on_failure(async_client, db_session, world):
+async def test_gemini_degrades_gracefully_without_key_or_on_failure(async_client, db_session, world, monkeypatch):
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "")
+    monkeypatch.setattr(settings, "GEMINI_BACKEND", "api_key")  # force the key path: no real Google call in tests
     await _restock_chg(db_session, world, 100)
     await _incident(db_session, world)
     url = f"/api/v1/analytics/surge-risk?medication_id={world['med'].id}&facility_id={world['chg'].id}&explain=true"

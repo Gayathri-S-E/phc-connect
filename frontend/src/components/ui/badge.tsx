@@ -1,32 +1,40 @@
 import React from 'react';
+import { cva, type VariantProps } from 'class-variance-authority';
+import { cn } from '../../lib/utils';
 
-export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
-  variant?: 'default' | 'sky' | 'teal' | 'success' | 'warning' | 'destructive' | 'outline' | 'slate';
-}
+export const badgeVariants = cva(
+  'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold tracking-wide transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 select-none',
+  {
+    variants: {
+      variant: {
+        default: 'border-[#7fc8f8]/60 bg-[#f0f7fe] text-[#257bb5] border',
+        secondary: 'border-slate-200 bg-slate-100 text-slate-700 border',
+        destructive: 'border-[#ff6392]/40 bg-[#fff0f5] text-[#d93b6e] font-bold border',
+        outline: 'border-slate-300 text-slate-700 bg-white border',
+        success: 'border-[#7fc8f8]/60 bg-[#f0f9ff] text-[#257bb5] font-bold border',
+        warning: 'border-[#ffe45e]/80 bg-[#fffde6] text-[#967b00] font-bold border',
+        info: 'border-[#7fc8f8]/60 bg-[#f0f7fe] text-[#257bb5] border',
+        purple: 'border-[#5aa9e6]/60 bg-[#f0f7fe] text-[#257bb5] border',
+        indigo: 'border-[#5aa9e6]/60 bg-[#f0f7fe] text-[#257bb5] border',
+        teal: 'border-[#7fc8f8]/60 bg-[#f0f9ff] text-[#257bb5] border',
+        slate: 'border-slate-200 bg-slate-100 text-slate-700 border',
+        sky: 'border-[#7fc8f8]/60 bg-[#f0f7fe] text-[#257bb5] border',
+        gold: 'border-[#ffe45e]/80 bg-[#fffde6] text-[#967b00] font-bold border',
+        rose: 'border-[#ff6392]/40 bg-[#fff0f5] text-[#d93b6e] font-bold border',
+      },
+    },
+    defaultVariants: {
+      variant: 'default',
+    },
+  }
+);
 
-export const Badge: React.FC<BadgeProps> = ({
-  variant = 'default',
-  className = '',
-  style,
-  children,
-  ...props
-}) => {
-  const baseStyles = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold tracking-wide transition-colors";
+export interface BadgeProps
+  extends React.HTMLAttributes<HTMLDivElement>,
+    VariantProps<typeof badgeVariants> {}
 
-  const variants = {
-    default: "bg-slate-900 text-white",
-    sky: "bg-sky-100 text-sky-800 border border-sky-200/80",
-    teal: "bg-teal-100 text-teal-800 border border-teal-200/80",
-    success: "bg-emerald-100 text-emerald-800 border border-emerald-200/80",
-    warning: "bg-amber-100 text-amber-800 border border-amber-200/80",
-    destructive: "bg-red-100 text-red-800 border border-red-200/80",
-    outline: "bg-white text-slate-700 border border-slate-200",
-    slate: "bg-slate-100 text-slate-700 border border-slate-200",
-  };
-
+export function Badge({ className, variant, ...props }: BadgeProps) {
   return (
-    <div className={`${baseStyles} ${variants[variant]} ${className}`} style={style} {...props}>
-      {children}
-    </div>
+    <div className={cn(badgeVariants({ variant }), className)} {...props} />
   );
-};
+}

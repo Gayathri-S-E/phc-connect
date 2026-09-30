@@ -3,15 +3,28 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   HeartPulse, UserPlus, CheckCircle, Clock, 
   AlertTriangle, Thermometer, ShieldAlert, Activity, 
-  Search, Plus, Check, Calendar, ArrowRight 
+  Search, Plus, Check, Calendar, ArrowRight, Stethoscope,
+  LogIn, LogOut, ShieldCheck, UserCheck, Snowflake, Baby
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { StateView } from '../components/common/StateView';
 import { Badge } from '../components/common/Badge';
-import { Modal } from '../components/common/Modal';
 import { DataTable } from '../components/common/DataTable';
 import { useLanguage } from '../context/LanguageContext';
+import { PageHeader } from '../components/ui/page-header';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import {
+  Dialog,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogContent,
+  DialogFooter,
+  DialogClose,
+} from '../components/ui/dialog';
 
 export default function NursePortal() {
   const { user } = useAuth();
@@ -39,6 +52,7 @@ export default function NursePortal() {
     if (tab === 'intake') navigate('/clinical/registration');
     else navigate(`/clinical/${tab}`);
   };
+
   const [triageQueue, setTriageQueue] = useState<any[]>([]);
   const [attendance, setAttendance] = useState<any>(null);
   const [coldChainAssets, setColdChainAssets] = useState<any[]>([]);
@@ -55,6 +69,7 @@ export default function NursePortal() {
   const [spo2, setSpo2] = useState(98);
   const [bloodSugar, setBloodSugar] = useState(110);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [triageSuccessNotice, setTriageSuccessNotice] = useState<string | null>(null);
 
   // New Citizen Intake Form State
   const [intakeFirstName, setIntakeFirstName] = useState('');
@@ -136,7 +151,7 @@ export default function NursePortal() {
 
       const res = await api.post(`/nurse/triage/vitals?appointment_id=${selectedAppt.appointment_id}`, payload);
       if (res.data) {
-        alert(`Vitals recorded for Token #${selectedAppt.token_number}! Patient routed to Doctor queue.`);
+        setTriageSuccessNotice(`Vitals logged for Token #${selectedAppt.token_number} (${selectedAppt.patient_name})! Patient immediately routed to Doctor queue.`);
         setSelectedAppt(null);
         fetchNurseData();
       } else {
@@ -167,6 +182,7 @@ export default function NursePortal() {
         setIntakeFirstName('');
         setIntakeLastName('');
         setIntakePhone('');
+        fetchNurseData();
       } else {
         alert(res.error?.detail || 'Intake failed.');
       }
@@ -219,524 +235,588 @@ export default function NursePortal() {
   };
 
   if (isLoading) {
-    return <StateView state="loading" message="Loading nurse triage desk..." />;
+    return <StateView state="loading" message="Loading nurse clinical station..." />;
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      {/* Top Header Card */}
-      <div
-        className="glass-card"
-        style={{
-          padding: '1.25rem 1.5rem',
-          borderRadius: '16px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '1rem',
-          backgroundColor: '#ffffff',
-          boxShadow: '0 2px 4px 0 rgba(0, 0, 0, 0.05)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <div
-            style={{
-              width: '48px',
-              height: '48px',
-              borderRadius: '12px',
-              backgroundColor: 'rgba(236, 72, 153, 0.1)',
-              color: '#db2777',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
+    <div className="flex flex-col gap-6 animate-fade-in">
+      {/* Context-First Nursing Desk Header */}
+      <PageHeader
+        breadcrumbs={[
+          { label: 'Clinical Services' },
+          { label: 'Nursing Station & Triage' },
+        ]}
+        facilityContext="Thirukalukundram PHC • Chengalpattu"
+        title="Triage &amp; Clinical Nursing Desk"
+        description="OPD patient intake, vital signs screening, cold chain vaccine monitoring, and Universal Immunization Programme sessions."
+        actions={
+          <div className="flex items-center gap-2">
+            {attendance?.status === 'CHECKED_IN' ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCheckOut}
+                className="gap-1.5 text-slate-700 hover:text-red-700"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Duty Check-Out</span>
+              </Button>
+            ) : (
+              <Button
+                variant="emerald"
+                size="sm"
+                onClick={handleCheckIn}
+                className="gap-1.5 shadow-xs"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Record Duty Check-In</span>
+              </Button>
+            )}
+
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => handleTabChange('intake')}
+              className="gap-1.5 shadow-xs"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>Register New Citizen</span>
+            </Button>
+          </div>
+        }
+        metrics={[
+          {
+            label: 'Awaiting Triage',
+            value: triageQueue.length,
+            hint: 'Patients in holding area',
+            variant: triageQueue.length > 0 ? 'sky' : 'default',
+            icon: <HeartPulse className="w-4 h-4" />,
+          },
+          {
+            label: 'Shift Status',
+            value: attendance?.status === 'CHECKED_IN' ? 'On Duty' : 'Off Duty',
+            hint: attendance?.check_in_time ? `Since ${attendance.check_in_time.slice(0, 5)}` : 'Shift ready',
+            variant: attendance?.status === 'CHECKED_IN' ? 'success' : 'default',
+            icon: <Activity className="w-4 h-4" />,
+          },
+          {
+            label: 'Cold Chain ILR',
+            value: `${coldChainAssets.length} Units`,
+            hint: 'Within 2°C – 8°C band',
+            variant: 'success',
+            icon: <Snowflake className="w-4 h-4" />,
+          },
+          {
+            label: 'UIP Session',
+            value: 'Active',
+            hint: 'Immunization day schedule',
+            variant: 'default',
+            icon: <Baby className="w-4 h-4" />,
+          },
+        ]}
+      />
+
+      {triageSuccessNotice && (
+        <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl text-xs font-semibold flex items-center justify-between gap-3 animate-fade-in shadow-2xs">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{triageSuccessNotice}</span>
+          </div>
+          <button
+            onClick={() => setTriageSuccessNotice(null)}
+            className="text-emerald-700 hover:text-emerald-950 underline text-xs cursor-pointer"
           >
-            <HeartPulse size={26} />
-          </div>
-          <div>
-            <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>Nurse Triage & Intake Desk</h2>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.2rem' }}>
-              <span style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>Shift Status:</span>
-              {attendance?.check_in_at ? (
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.35rem',
-                    fontSize: '0.75rem',
-                    color: '#059669',
-                    fontWeight: 700,
-                    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                    padding: '0.2rem 0.5rem',
-                    borderRadius: '6px',
-                  }}
-                >
-                  <CheckCircle size={13} /> Checked In
-                </span>
-              ) : (
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.35rem',
-                    fontSize: '0.75rem',
-                    color: '#dc2626',
-                    fontWeight: 700,
-                    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                    padding: '0.2rem 0.5rem',
-                    borderRadius: '6px',
-                  }}
-                >
-                  <Clock size={13} /> Not Checked In
-                </span>
-              )}
-            </div>
-          </div>
+            Dismiss
+          </button>
         </div>
+      )}
 
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          {attendance?.check_in_at ? (
-            <button onClick={handleCheckOut} className="btn-secondary" style={{ fontSize: '0.825rem', padding: '0.5rem 0.85rem' }}>
-              Check Out Shift
-            </button>
-          ) : (
-            <button onClick={handleCheckIn} className="btn-primary" style={{ fontSize: '0.825rem', padding: '0.5rem 0.85rem' }}>
-              Check In Shift
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.25rem' }}>
+      {/* Sub-Navigation Tabs */}
+      <div className="flex items-center gap-1.5 p-1 bg-slate-100 border border-slate-200/80 rounded-xl overflow-x-auto no-scrollbar max-w-full">
         {[
-          { key: 'triage', label: 'Triage Queue & Vitals', icon: <HeartPulse size={16} /> },
-          { key: 'intake', label: 'Citizen Registration', icon: <UserPlus size={16} /> },
-          { key: 'coldchain', label: 'Vaccine Cold Chain', icon: <Thermometer size={16} /> },
-          { key: 'immunization', label: 'Immunization AI Protocol', icon: <Activity size={16} /> },
+          { key: 'triage', label: `Triage Queue (${triageQueue.length})`, icon: <HeartPulse className="w-4 h-4" /> },
+          { key: 'intake', label: 'Citizen Intake & Token', icon: <UserPlus className="w-4 h-4" /> },
+          { key: 'coldchain', label: `Cold Chain ILR (${coldChainAssets.length})`, icon: <Snowflake className="w-4 h-4" /> },
+          { key: 'immunization', label: 'UIP Immunization Roster', icon: <Baby className="w-4 h-4" /> },
         ].map((tab) => (
           <button
             key={tab.key}
+            type="button"
             onClick={() => handleTabChange(tab.key as any)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              padding: '0.65rem 1rem',
-              borderRadius: '8px 8px 0 0',
-              border: 'none',
-              cursor: 'pointer',
-              fontWeight: activeTab === tab.key ? 700 : 500,
-              fontSize: '0.875rem',
-              color: activeTab === tab.key ? 'var(--primary)' : 'var(--text-muted)',
-              borderBottom: activeTab === tab.key ? '2px solid var(--primary)' : '2px solid transparent',
-              backgroundColor: 'transparent',
-            }}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer select-none ${
+              activeTab === tab.key
+                ? 'bg-white text-sky-900 shadow-2xs font-extrabold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+            }`}
           >
             {tab.icon}
-            {tab.label}
+            <span>{tab.label}</span>
           </button>
         ))}
       </div>
 
-      {/* TAB 1: TRIAGE QUEUE & VITALS CAPTURE */}
+      {/* TAB 1: TRIAGE VITALS DESK */}
       {activeTab === 'triage' && (
-        <div style={{ display: 'grid', gridTemplateColumns: selectedAppt ? '1fr 1.2fr' : '1fr', gap: '1.5rem', alignItems: 'start' }}>
-          <div className="glass-card" style={{ padding: '1.25rem', borderRadius: '14px' }}>
-            <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.1rem', fontWeight: 700 }}>
-              Arriving Patients Awaiting Vitals
-            </h3>
+        <div className="space-y-6">
+          {/* Selected Patient Vitals Capture Modal / Panel */}
+          {selectedAppt && (
+            <Card className="border-sky-300 shadow-md">
+              <CardHeader className="bg-sky-50/70 border-b border-sky-100 pb-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-sky-600 text-white font-bold flex items-center justify-center">
+                      #{selectedAppt.token_number}
+                    </div>
+                    <div>
+                      <CardTitle className="text-base">
+                        Vitals Entry: {selectedAppt.patient_name || 'Citizen'}
+                      </CardTitle>
+                      <CardDescription>
+                        UHID: {selectedAppt.patient_identifier || 'DEMO-PAT-0001'} • Reason: {selectedAppt.reason || 'General Visit'}
+                      </CardDescription>
+                    </div>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => setSelectedAppt(null)}>
+                    Cancel
+                  </Button>
+                </div>
+              </CardHeader>
+
+              <CardContent className="p-6">
+                <form onSubmit={handleRecordVitals} className="space-y-5">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-700 uppercase">Systolic BP</label>
+                      <Input
+                        type="number"
+                        value={systolic}
+                        onChange={(e) => setSystolic(Number(e.target.value))}
+                        placeholder="120"
+                        className="font-mono font-bold"
+                        required
+                      />
+                      <span className="text-[10px] text-slate-400">mmHg</span>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-700 uppercase">Diastolic BP</label>
+                      <Input
+                        type="number"
+                        value={diastolic}
+                        onChange={(e) => setDiastolic(Number(e.target.value))}
+                        placeholder="80"
+                        className="font-mono font-bold"
+                        required
+                      />
+                      <span className="text-[10px] text-slate-400">mmHg</span>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-700 uppercase">Heart Rate</label>
+                      <Input
+                        type="number"
+                        value={heartRate}
+                        onChange={(e) => setHeartRate(Number(e.target.value))}
+                        placeholder="76"
+                        className="font-mono font-bold"
+                        required
+                      />
+                      <span className="text-[10px] text-slate-400">bpm</span>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-700 uppercase">SpO2 Oxygen</label>
+                      <Input
+                        type="number"
+                        value={spo2}
+                        onChange={(e) => setSpo2(Number(e.target.value))}
+                        placeholder="98"
+                        className={`font-mono font-bold ${spo2 < 95 ? 'border-red-400 text-red-600' : ''}`}
+                        required
+                      />
+                      <span className="text-[10px] text-slate-400">%</span>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-700 uppercase">Temperature</label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={temperature}
+                        onChange={(e) => setTemperature(Number(e.target.value))}
+                        placeholder="98.6"
+                        className="font-mono font-bold"
+                        required
+                      />
+                      <span className="text-[10px] text-slate-400">°F</span>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-700 uppercase">Blood Sugar</label>
+                      <Input
+                        type="number"
+                        value={bloodSugar}
+                        onChange={(e) => setBloodSugar(Number(e.target.value))}
+                        placeholder="110"
+                        className="font-mono font-bold"
+                      />
+                      <span className="text-[10px] text-slate-400">mg/dL (RBS)</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-4 border-t border-slate-200">
+                    <span className="text-xs text-slate-500">
+                      Submitting vitals assigns clinical triage score and pushes token to Doctor Consultation Queue.
+                    </span>
+                    <Button type="submit" variant="primary" disabled={isSubmitting} className="gap-2">
+                      <Check className="w-4 h-4" />
+                      <span>{isSubmitting ? 'Routing to Doctor...' : 'Save Vitals & Route to Doctor Queue'}</span>
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Triage Queue Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Registered Patients Awaiting Nursing Triage</CardTitle>
+              <CardDescription>
+                Citizens checked in today. Screen vital signs to establish triage acuity.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <DataTable
+                data={triageQueue}
+                keyExtractor={(p) => p.id || p.appointment_id || String(p.token_number)}
+                searchFilter={(p, q) =>
+                  (p.patient_name || '').toLowerCase().includes(q) ||
+                  (p.patient_identifier || '').toLowerCase().includes(q) ||
+                  (p.reason || '').toLowerCase().includes(q)
+                }
+                emptyTitle="No Patients Awaiting Triage"
+                emptyMessage="All registered OPD patients have completed triage screening."
+                columns={[
+                  {
+                    key: 'token',
+                    header: 'Token #',
+                    render: (p) => (
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-sky-50 text-sky-800 font-mono font-bold text-xs border border-sky-200/80">
+                        #{p.token_number || '1'}
+                      </span>
+                    ),
+                  },
+                  {
+                    key: 'patient',
+                    header: 'Patient Details',
+                    render: (p) => (
+                      <div>
+                        <span className="font-bold text-slate-900 block text-xs sm:text-sm">
+                          {p.patient_name || 'Citizen'}
+                        </span>
+                        <span className="text-[11px] text-slate-500 font-mono">
+                          {p.patient_identifier || 'DEMO-PAT-0001'} • {p.age || 38} Y / {p.gender || 'M'}
+                        </span>
+                      </div>
+                    ),
+                  },
+                  {
+                    key: 'time',
+                    header: 'Check-In Slot',
+                    render: (p) => <span className="text-xs font-mono text-slate-600">{p.slot_time || '09:30 AM'}</span>,
+                  },
+                  {
+                    key: 'complaint',
+                    header: 'Reported Complaint',
+                    render: (p) => <span className="text-xs text-slate-700">{p.reason || p.reason_for_visit || 'General Visit'}</span>,
+                  },
+                  {
+                    key: 'status',
+                    header: 'Triage Status',
+                    render: (p) => <Badge status={p.status || 'PENDING'} size="sm" />,
+                  },
+                  {
+                    key: 'action',
+                    header: 'Action',
+                    render: (p) => (
+                      <div className="flex items-center gap-1.5">
+                        {p.status === 'SCHEDULED' && (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => handleCheckInToken(p.appointment_id)}
+                            className="h-7 text-xs px-2"
+                          >
+                            Check In
+                          </Button>
+                        )}
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => setSelectedAppt(p)}
+                          className="h-7 text-xs px-2.5 gap-1"
+                        >
+                          <HeartPulse className="w-3.5 h-3.5" />
+                          <span>Record Vitals</span>
+                        </Button>
+                      </div>
+                    ),
+                  },
+                ]}
+              />
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* TAB 2: CITIZEN INTAKE & TOKEN GENERATION */}
+      {activeTab === 'intake' && (
+        <Card className="max-w-2xl mx-auto">
+          <CardHeader>
+            <CardTitle>OPD Citizen Registration &amp; Token Generator</CardTitle>
+            <CardDescription>
+              Register walk-in citizens into the state healthcare registry and generate immediate OPD token.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {intakeSuccess ? (
+              <div className="p-6 bg-emerald-50 border border-emerald-200 rounded-xl text-center space-y-3">
+                <CheckCircle className="w-10 h-10 text-emerald-600 mx-auto" />
+                <h4 className="text-base font-bold text-emerald-950">Patient Successfully Registered</h4>
+                <div className="p-3 bg-white border border-emerald-200 rounded-lg inline-block text-left text-xs font-mono space-y-1">
+                  <div>UHID: <strong>{intakeSuccess.patient_identifier || 'DEMO-PAT-NEW'}</strong></div>
+                  <div>Name: <strong>{intakeSuccess.first_name} {intakeSuccess.last_name}</strong></div>
+                  <div>Assigned Facility: <strong>Thirukalukundram PHC</strong></div>
+                </div>
+                <div>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => {
+                      setIntakeSuccess(null);
+                      handleTabChange('triage');
+                    }}
+                  >
+                    Go to Triage Queue
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handlePatientIntake} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">First Name</label>
+                    <Input
+                      type="text"
+                      value={intakeFirstName}
+                      onChange={(e) => setIntakeFirstName(e.target.value)}
+                      placeholder="e.g. Meenakshi"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Last Name</label>
+                    <Input
+                      type="text"
+                      value={intakeLastName}
+                      onChange={(e) => setIntakeLastName(e.target.value)}
+                      placeholder="e.g. Sundaram"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Date of Birth</label>
+                    <Input
+                      type="date"
+                      value={intakeDob}
+                      onChange={(e) => setIntakeDob(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Gender</label>
+                    <select
+                      value={intakeGender}
+                      onChange={(e) => setIntakeGender(e.target.value)}
+                      className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg outline-none font-medium"
+                    >
+                      <option value="FEMALE">Female</option>
+                      <option value="MALE">Male</option>
+                      <option value="OTHER">Other</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Mobile Contact (+91)</label>
+                  <Input
+                    type="tel"
+                    value={intakePhone}
+                    onChange={(e) => setIntakePhone(e.target.value)}
+                    placeholder="98401 23456"
+                  />
+                </div>
+
+                <Button type="submit" variant="primary" disabled={isSubmitting} className="w-full">
+                  {isSubmitting ? 'Registering Citizen...' : 'Register Citizen & Issue OPD Token'}
+                </Button>
+              </form>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* TAB 3: COLD CHAIN EQUIPMENT TELEMETRY */}
+      {activeTab === 'coldchain' && (
+        <Card>
+          <CardHeader>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <CardTitle>Cold Chain Storage Telemetry (ILR &amp; Freezers)</CardTitle>
+                <CardDescription>
+                  Universal immunization temperature monitoring. Regulatory target: +2°C to +8°C continuous band.
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
+                  Target: 2°C – 8°C Safe Band
+                </span>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {logSuccess && (
+              <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-lg text-xs font-semibold">
+                Temperature log recorded successfully and synced with eVIN / CoWIN cold chain monitor!
+              </div>
+            )}
             <DataTable
-              data={triageQueue}
-              keyExtractor={(item) => item.appointment_id}
-              emptyTitle="No Arriving Patients"
-              emptyMessage="All scheduled patients have been triaged."
+              data={coldChainAssets}
+              keyExtractor={(c) => c.id}
+              emptyTitle="No Cold Chain Units Configured"
+              emptyMessage="No Ice-Lined Refrigerators or Deep Freezers registered in this facility."
               columns={[
                 {
-                  key: 'token',
-                  header: 'Token',
-                  render: (item) => (
-                    <span style={{ padding: '0.2rem 0.5rem', borderRadius: '6px', backgroundColor: 'rgba(37, 99, 235, 0.1)', color: 'var(--primary)', fontWeight: 800 }}>
-                      #{item.token_number}
-                    </span>
-                  ),
-                },
-                {
                   key: 'name',
-                  header: 'Patient Name',
-                  render: (item) => (
+                  header: 'Equipment Name',
+                  render: (c) => (
                     <div>
-                      <div style={{ fontWeight: 600 }}>{item.patient_name}</div>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{item.age} yrs • {item.gender}</span>
+                      <span className="font-bold text-slate-900 block">{c.equipment_name || c.model || 'ILR Unit 1'}</span>
+                      <span className="text-[11px] text-slate-400 font-mono">SN: {c.serial_number || 'ILR-KOV-01'}</span>
                     </div>
                   ),
                 },
                 {
-                  key: 'status',
-                  header: 'Status',
-                  render: (item) => item.vitals ? <Badge status="COMPLETED" label="Vitals Recorded" /> : <Badge status="PENDING" label="Needs Vitals" />,
+                  key: 'type',
+                  header: 'Asset Type',
+                  render: (c) => <span className="text-xs text-slate-600 font-medium">{c.equipment_type || 'Ice-Lined Refrigerator'}</span>,
                 },
                 {
-                  key: 'action',
-                  header: 'Action',
-                  render: (item) => (
-                    <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                      {item.status !== 'CHECKED_IN' && item.status !== 'IN_CONSULTATION' && (
-                        <button
-                          onClick={() => handleCheckInToken(item.appointment_id)}
-                          className="btn-secondary"
-                          style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem' }}
-                          title="Mark token as physically arrived at PHC"
-                        >
-                          Check In
-                        </button>
-                      )}
-                      <button
-                        onClick={() => {
-                          setSelectedAppt(item);
-                          if (item.vitals) {
-                            setSystolic(item.vitals.systolic_bp);
-                            setDiastolic(item.vitals.diastolic_bp);
-                            setHeartRate(item.vitals.heart_rate);
-                            setTemperature(item.vitals.temperature);
-                            setSpo2(item.vitals.spo2);
-                          }
-                        }}
-                        className="btn-primary"
-                        style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}
+                  key: 'temp',
+                  header: 'Latest Reading',
+                  render: (c) => {
+                    const temp = c.current_temp_c ?? c.latest_temperature ?? 4.2;
+                    const inRange = temp >= 2 && temp <= 8;
+                    return (
+                      <span className={`font-mono font-black text-xs ${inRange ? 'text-emerald-700' : 'text-red-600'}`}>
+                        {temp}°C {inRange ? '✅ Safe' : '⚠️ Excursion'}
+                      </span>
+                    );
+                  },
+                },
+                {
+                  key: 'log',
+                  header: 'Shift Log',
+                  render: (c) => (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        step="0.1"
+                        value={logTemp}
+                        onChange={(e) => setLogTemp(Number(e.target.value))}
+                        className="w-18 h-7 text-xs font-mono"
+                      />
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => handleLogColdChain(c.id)}
+                        className="h-7 text-xs px-2"
                       >
-                        {item.vitals ? 'Update Vitals' : 'Record Vitals'}
-                      </button>
+                        Log Temp
+                      </Button>
                     </div>
                   ),
                 },
               ]}
             />
-          </div>
-
-          {/* VITALS RECORDING FORM */}
-          {selectedAppt && (
-            <div className="glass-card animate-fade-in" style={{ padding: '1.5rem', borderRadius: '14px', border: '2px solid rgba(236, 72, 153, 0.3)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
-                <div>
-                  <span style={{ fontSize: '0.75rem', color: '#db2777', fontWeight: 700, textTransform: 'uppercase' }}>
-                    PATIENT TRIAGE DESK
-                  </span>
-                  <h3 style={{ margin: '0.2rem 0 0 0', fontSize: '1.2rem', fontWeight: 800 }}>
-                    Token #{selectedAppt.token_number} — {selectedAppt.patient_name}
-                  </h3>
-                </div>
-                <button onClick={() => setSelectedAppt(null)} className="btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}>
-                  Close
-                </button>
-              </div>
-
-              <form onSubmit={handleRecordVitals} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                      Systolic BP (mmHg)
-                    </label>
-                    <input
-                      type="number"
-                      value={systolic}
-                      onChange={(e) => setSystolic(Number(e.target.value))}
-                      required
-                      style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                      Diastolic BP (mmHg)
-                    </label>
-                    <input
-                      type="number"
-                      value={diastolic}
-                      onChange={(e) => setDiastolic(Number(e.target.value))}
-                      required
-                      style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}
-                    />
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                      Heart Rate (bpm)
-                    </label>
-                    <input
-                      type="number"
-                      value={heartRate}
-                      onChange={(e) => setHeartRate(Number(e.target.value))}
-                      required
-                      style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                      Temp (°F)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={temperature}
-                      onChange={(e) => setTemperature(Number(e.target.value))}
-                      required
-                      style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                      SpO2 (%)
-                    </label>
-                    <input
-                      type="number"
-                      value={spo2}
-                      onChange={(e) => setSpo2(Number(e.target.value))}
-                      required
-                      style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}
-                    />
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                      Resp Rate (/min)
-                    </label>
-                    <input
-                      type="number"
-                      value={respRate}
-                      onChange={(e) => setRespRate(Number(e.target.value))}
-                      required
-                      style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-                      Blood Sugar (mg/dL)
-                    </label>
-                    <input
-                      type="number"
-                      value={bloodSugar}
-                      onChange={(e) => setBloodSugar(Number(e.target.value))}
-                      style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="btn-primary"
-                  style={{
-                    backgroundColor: '#db2777',
-                    padding: '0.75rem',
-                    fontWeight: 700,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.5rem',
-                  }}
-                >
-                  <Check size={18} />
-                  {isSubmitting ? 'Recording & Calculating EWS...' : 'Save Vitals & Route to Doctor Queue'}
-                </button>
-              </form>
-            </div>
-          )}
-        </div>
+          </CardContent>
+        </Card>
       )}
 
-      {/* TAB 2: CITIZEN REGISTRATION / INTAKE */}
-      {activeTab === 'intake' && (
-        <div className="glass-card" style={{ padding: '1.5rem', borderRadius: '14px', maxWidth: '600px' }}>
-          <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1.15rem', fontWeight: 700 }}>Walk-in Citizen Registration</h3>
-          <p style={{ margin: '0 0 1.25rem 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            Register new citizens and allocate a Primary Health Centre Universal Health ID (UHID).
-          </p>
-
-          {intakeSuccess && (
-            <div style={{ padding: '1rem', borderRadius: '8px', backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#059669', marginBottom: '1rem' }}>
-              <strong>Citizen Registered Successfully!</strong>
-              <div>UHID: <strong>{intakeSuccess.patient_identifier}</strong></div>
-              <div>Name: {intakeSuccess.first_name} {intakeSuccess.last_name}</div>
-            </div>
-          )}
-
-          <form onSubmit={handlePatientIntake} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>First Name</label>
-                <input
-                  type="text"
-                  required
-                  value={intakeFirstName}
-                  onChange={(e) => setIntakeFirstName(e.target.value)}
-                  style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>Last Name</label>
-                <input
-                  type="text"
-                  value={intakeLastName}
-                  onChange={(e) => setIntakeLastName(e.target.value)}
-                  style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}
-                />
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>Date of Birth</label>
-                <input
-                  type="date"
-                  required
-                  value={intakeDob}
-                  onChange={(e) => setIntakeDob(e.target.value)}
-                  style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>Gender</label>
-                <select
-                  value={intakeGender}
-                  onChange={(e) => setIntakeGender(e.target.value)}
-                  style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}
-                >
-                  <option value="FEMALE">Female</option>
-                  <option value="MALE">Male</option>
-                  <option value="OTHER">Other</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>Mobile Phone (+91)</label>
-              <input
-                type="tel"
-                placeholder="+919876543210"
-                value={intakePhone}
-                onChange={(e) => setIntakePhone(e.target.value)}
-                style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}
-              />
-            </div>
-
-            <button type="submit" disabled={isSubmitting} className="btn-primary" style={{ padding: '0.7rem' }}>
-              {isSubmitting ? 'Registering...' : 'Register Citizen & Generate UHID'}
-            </button>
-          </form>
-        </div>
-      )}
-
-      {/* TAB 3: COLD CHAIN LOGGING */}
-      {activeTab === 'coldchain' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxWidth: '700px' }}>
-          <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700 }}>Vaccine Refrigerator Temperature Log</h3>
-          {logSuccess && (
-            <div style={{ padding: '0.75rem', borderRadius: '8px', backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#059669' }}>
-              Temperature recorded successfully! Status verified within safe bounds (+2°C to +8°C).
-            </div>
-          )}
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1rem' }}>
-            {coldChainAssets.map((asset) => (
-              <div key={asset.id} className="glass-card" style={{ padding: '1.25rem', borderRadius: '12px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
-                    <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>{asset.equipment_name || 'ILR Refrigerator'}</h4>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Model: {asset.model_number || 'Blue Star ILR-300'}</span>
-                  </div>
-                  <Badge status="ACTIVE" label="Safe Range: +2°C to +8°C" />
-                </div>
-
-                <div style={{ margin: '1rem 0' }}>
-                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={logTemp}
-                      onChange={(e) => setLogTemp(Number(e.target.value))}
-                      style={{ width: '100px', padding: '0.45rem', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '0.9rem' }}
-                    />
-                    <span>°C</span>
-                    <select
-                      value={logShift}
-                      onChange={(e) => setLogShift(e.target.value as any)}
-                      style={{ padding: '0.45rem', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '0.8rem' }}
-                    >
-                      <option value="MORNING">Morning (08:00)</option>
-                      <option value="EVENING">Evening (16:00)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <button onClick={() => handleLogColdChain(asset.id)} className="btn-secondary" style={{ width: '100%', fontSize: '0.8rem' }}>
-                  Save Temperature Reading
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* TAB 4: IMMUNIZATION & ANC PROTOCOL ASSISTANT */}
+      {/* TAB 4: UIP IMMUNIZATION ROSTER */}
       {activeTab === 'immunization' && (
-        <div className="glass-card" style={{ padding: '1.5rem', borderRadius: '14px', maxWidth: '650px' }}>
-          <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1.15rem', fontWeight: 700 }}>
-            Tamil Nadu Universal Immunization Program (UIP) Protocol
-          </h3>
-          <p style={{ margin: '0 0 1rem 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            Instant vaccine milestone check and High-Risk Pregnancy maternal protocol adviser.
-          </p>
-
-          <form onSubmit={handleQueryImmunization} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', marginBottom: '1.25rem' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>Child Age (Months)</label>
-              <input
-                type="number"
-                min="0"
-                max="60"
-                value={immAgeMonths}
-                onChange={(e) => setImmAgeMonths(Number(e.target.value))}
-                style={{ width: '120px', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}
-              />
-            </div>
-            <div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', cursor: 'pointer', paddingBottom: '0.5rem' }}>
-                <input
-                  type="checkbox"
-                  checked={immIsPregnant}
-                  onChange={(e) => setImmIsPregnant(e.target.checked)}
-                />
-                Pregnant Mother (ANC Protocol)
-              </label>
-            </div>
-            <button type="submit" disabled={isQueryingImm} className="btn-primary" style={{ padding: '0.55rem 1rem' }}>
-              {isQueryingImm ? 'Checking...' : 'Check Schedule'}
-            </button>
-          </form>
-
-          {immGuidance && (
-            <div style={{ padding: '1rem', borderRadius: '10px', backgroundColor: 'rgba(241, 245, 249, 0.8)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: 'var(--primary)' }}>
-                Recommended Vaccines & Protocols:
-              </h4>
-              <ul style={{ margin: 0, paddingLeft: '1.25rem', fontSize: '0.85rem', lineHeight: 1.6 }}>
-                {immGuidance.recommended_vaccines?.map((v: string, i: number) => (
-                  <li key={i}><strong>{v}</strong></li>
-                ))}
-              </ul>
-              {immGuidance.clinical_notes && (
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                  <strong>Note:</strong> {immGuidance.clinical_notes}
+        <Card className="max-w-2xl mx-auto">
+          <CardHeader>
+            <CardTitle>Universal Immunization Programme (UIP) Calculator</CardTitle>
+            <CardDescription>
+              Verify mandatory vaccines due for infants, children, and antenatal mothers per Tamil Nadu UIP guidelines.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <form onSubmit={handleQueryImmunization} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Beneficiary Age (Months)</label>
+                  <Input
+                    type="number"
+                    value={immAgeMonths}
+                    onChange={(e) => setImmAgeMonths(Number(e.target.value))}
+                    min={0}
+                    max={120}
+                    required
+                  />
                 </div>
-              )}
-            </div>
-          )}
-        </div>
+                <div className="flex items-center pt-6">
+                  <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={immIsPregnant}
+                      onChange={(e) => setImmIsPregnant(e.target.checked)}
+                      className="w-4 h-4 rounded text-sky-600"
+                    />
+                    <span>Antenatal Beneficiary (Pregnant Mother)</span>
+                  </label>
+                </div>
+              </div>
+
+              <Button type="submit" variant="primary" disabled={isQueryingImm} className="w-full">
+                {isQueryingImm ? 'Calculating Schedule...' : 'Fetch Mandatory Vaccines Due'}
+              </Button>
+            </form>
+
+            {immGuidance && (
+              <div className="p-4 bg-sky-50 border border-sky-200 rounded-xl space-y-3 animate-fade-in">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-sky-950 uppercase">Mandatory Vaccines Due</span>
+                  <Badge status="ACTIVE" size="sm" />
+                </div>
+                <div className="space-y-1.5">
+                  {immGuidance.due_vaccines?.map((v: string, idx: number) => (
+                    <div key={idx} className="p-2.5 bg-white rounded-lg border border-sky-100 flex items-center justify-between text-xs">
+                      <span className="font-bold text-slate-900">{v}</span>
+                      <span className="text-[11px] text-emerald-700 font-semibold">Ready for Administration</span>
+                    </div>
+                  )) || (
+                    <div className="text-xs text-slate-600">All standard milestone vaccines up to date for this age group.</div>
+                  )}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
     </div>
   );

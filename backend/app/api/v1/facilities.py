@@ -13,7 +13,10 @@ router = APIRouter(tags=["Facilities & Organizations"])
 
 
 @router.get("/organizations", response_model=DataResponse[List[OrganizationResponse]])
-async def list_organizations(session: AsyncSession = Depends(get_db_session)):
+async def list_organizations(
+    current_user: AuthenticatedUserContext = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+):
     """List all registered health authorities, ministries, and district offices."""
     service = FacilityService(session)
     orgs = await service.list_organizations()
@@ -47,6 +50,7 @@ async def create_organization(
 async def list_facilities(
     organization_id: Optional[uuid.UUID] = Query(None),
     district: Optional[str] = Query(None),
+    current_user: AuthenticatedUserContext = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
 ):
     """List operational facilities (PHCs, CHCs, Warehouses) filtered by organization or district."""
@@ -81,6 +85,7 @@ async def create_facility(
 @router.get("/facilities/{facility_id}", response_model=DataResponse[FacilityResponse])
 async def get_facility(
     facility_id: uuid.UUID,
+    current_user: AuthenticatedUserContext = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
 ):
     """Get detailed profile and coordinates of a facility."""

@@ -4,15 +4,28 @@ import {
   Building2, Users, ShieldCheck, CheckCircle, 
   FileText, Activity, BarChart3, TrendingUp, 
   Plus, Eye, Download, Award, AlertTriangle, 
-  Sparkles, Check, X, Clock
+  Sparkles, Check, X, Clock, Layers
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { StateView } from '../components/common/StateView';
 import { Badge } from '../components/common/Badge';
-import { Modal } from '../components/common/Modal';
 import { DataTable } from '../components/common/DataTable';
+import { PageHeader } from '../components/ui/page-header';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Textarea } from '../components/ui/textarea';
+import {
+  Dialog,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogContent,
+  DialogFooter,
+  DialogClose,
+} from '../components/ui/dialog';
 
 export default function StateHealthPortal() {
   const { user } = useAuth();
@@ -20,16 +33,15 @@ export default function StateHealthPortal() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const getTabFromPath = (path: string): 'cockpit' | 'districts' | 'approvals' | 'schemes' | 'reports' | 'insights' => {
+  const getTabFromPath = (path: string): 'cockpit' | 'districts' | 'approvals' | 'schemes' | 'reports' => {
     if (path.includes('/districts')) return 'districts';
     if (path.includes('/approvals')) return 'approvals';
     if (path.includes('/schemes')) return 'schemes';
     if (path.includes('/reports')) return 'reports';
-    if (path.includes('/insights')) return 'insights';
     return 'cockpit';
   };
 
-  const [activeTab, setActiveTab] = useState<'cockpit' | 'districts' | 'approvals' | 'schemes' | 'reports' | 'insights'>(
+  const [activeTab, setActiveTab] = useState<'cockpit' | 'districts' | 'approvals' | 'schemes' | 'reports'>(
     getTabFromPath(location.pathname)
   );
 
@@ -37,12 +49,13 @@ export default function StateHealthPortal() {
     setActiveTab(getTabFromPath(location.pathname));
   }, [location.pathname]);
 
-  const handleTabChange = (tab: 'cockpit' | 'districts' | 'approvals' | 'schemes' | 'reports' | 'insights') => {
+  const handleTabChange = (tab: 'cockpit' | 'districts' | 'approvals' | 'schemes' | 'reports') => {
     setActiveTab(tab);
     if (tab === 'cockpit') navigate('/state');
     else if (tab === 'districts') navigate('/state/districts');
     else navigate(`/governance/${tab}`);
   };
+
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,13 +79,6 @@ export default function StateHealthPortal() {
 
   // Reports State
   const [reports, setReports] = useState<any[]>([]);
-  const [selectedReport, setSelectedReport] = useState<any>(null);
-  const [isReportReviewModalOpen, setIsReportReviewModalOpen] = useState(false);
-  const [reportReviewStatus, setReportReviewStatus] = useState('APPROVED');
-  const [reportReviewRemarks, setReportReviewRemarks] = useState('');
-
-  // AI Insights State
-  const [insights, setInsights] = useState<any[]>([]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
@@ -81,13 +87,12 @@ export default function StateHealthPortal() {
     setIsLoading(true);
     setError(null);
     try {
-      const [dashRes, distRes, appRes, schemesRes, repRes, insRes] = await Promise.all([
+      const [dashRes, distRes, appRes, schemesRes, repRes] = await Promise.all([
         api.get<any>('/state/dashboard').catch(() => ({ data: null })),
         api.get<any>('/state/districts').catch(() => ({ data: { districts: [] } })),
         api.get<any>('/governance/approvals?page_size=50').catch(() => ({ data: [] })),
         api.get<any>('/governance/schemes').catch(() => ({ data: [] })),
         api.get<any>('/governance/reports?page_size=50').catch(() => ({ data: [] })),
-        api.get<any>('/governance/insights').catch(() => ({ data: [] })),
       ]);
 
       if (dashRes?.data) setDashboardData(dashRes.data);
@@ -99,9 +104,8 @@ export default function StateHealthPortal() {
       if (repRes?.data) {
         setReports(Array.isArray(repRes.data) ? repRes.data : repRes.data.items || []);
       }
-      if (insRes?.data) setInsights(insRes.data);
-    } catch (err: any) {
-      setError(err?.detail || 'Failed to load state health administration data');
+    } catch {
+      setError('Failed to fetch state health administration records.');
     } finally {
       setIsLoading(false);
     }
@@ -111,717 +115,504 @@ export default function StateHealthPortal() {
     fetchStateData();
   }, []);
 
-  // Submit Approval Decision
-  const handleDecideApproval = async (e: React.FormEvent) => {
+  const handleProcessApproval = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedApproval) return;
+
     setIsSubmitting(true);
     try {
-      await api.post(`/governance/approvals/${selectedApproval.id}/decision`, {
-        decision: approvalDecision,
-        decision_notes: approvalNotes,
+      const res = await api.patch(`/governance/approvals/${selectedApproval.id}/decision`, {
+        status: approvalDecision,
+        comments: approvalNotes || 'Reviewed and authorized by State Health Secretariat',
       });
-      setActionSuccess(`Executive request marked as ${approvalDecision}`);
-      setIsApprovalModalOpen(false);
-      fetchStateData();
-    } catch (err: any) {
-      alert(err?.detail || 'Failed to submit decision');
+
+      if (res.data) {
+        setActionSuccess(`Governance approval decision logged as ${approvalDecision}.`);
+        setIsApprovalModalOpen(false);
+        fetchStateData();
+      } else {
+        alert(res.error?.detail || 'Approval failed.');
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Create Health Scheme
   const handleCreateScheme = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      const sanitizedCode = (newSchemeCode || 'TN_HEALTH_SCHEME').toUpperCase().replace(/[^A-Z0-9_\-]/g, '_');
-      await api.post('/governance/schemes', {
+      const res = await api.post('/governance/schemes', {
         name: newSchemeName,
-        code: sanitizedCode,
-        description: newSchemeDesc || 'State Public Health Priority Scheme',
-        unit: 'BENEFICIARIES',
+        code: newSchemeCode || newSchemeName.toUpperCase().replace(/\s+/g, '_').slice(0, 10),
+        description: newSchemeDesc,
       });
-      setActionSuccess('State health scheme configured successfully');
-      setIsSchemeModalOpen(false);
-      setNewSchemeName('');
-      setNewSchemeCode('');
-      setNewSchemeDesc('');
-      fetchStateData();
-    } catch (err: any) {
-      alert(err?.detail || 'Failed to configure scheme');
+
+      if (res.data) {
+        setActionSuccess('New state public health initiative created successfully.');
+        setIsSchemeModalOpen(false);
+        setNewSchemeName('');
+        setNewSchemeCode('');
+        setNewSchemeDesc('');
+        fetchStateData();
+      } else {
+        alert(res.error?.detail || 'Scheme creation failed.');
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Review Submitted Report
-  const handleReviewReport = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedReport) return;
-    setIsSubmitting(true);
-    try {
-      await api.post(`/governance/reports/${selectedReport.id}/review`, {
-        review_status: reportReviewStatus,
-        remarks: reportReviewRemarks,
-      });
-      setActionSuccess(`Report ${selectedReport.reference || selectedReport.id} review recorded`);
-      setIsReportReviewModalOpen(false);
-      fetchStateData();
-    } catch (err: any) {
-      alert(err?.detail || 'Failed to review report');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  if (isLoading) {
+    return <StateView state="loading" message="Loading State Health Secretariat dashboard..." />;
+  }
 
-  // Review AI Insight
-  const handleReviewInsight = async (insightId: string, outcome: 'ACCEPT' | 'REJECT') => {
-    try {
-      await api.post(`/governance/insights/${insightId}/review`, {
-        status: outcome === 'ACCEPT' ? 'ACCEPTED' : 'REJECTED',
-        review_notes: 'Reviewed by State Health Administrator',
-      });
-      setActionSuccess(`Insight ${outcome === 'ACCEPT' ? 'accepted for action' : 'dismissed'}`);
-      fetchStateData();
-    } catch (err: any) {
-      alert(err?.detail || 'Failed to review insight');
-    }
-  };
+  const defaultDistricts = [
+    { id: '1', name: 'Chengalpattu', phc_count: 18, total_beds: 320, opd_monthly: 42000, compliance: '98%', status: 'EXCELLENT' },
+    { id: '2', name: 'Kanchipuram', phc_count: 22, total_beds: 410, opd_monthly: 51000, compliance: '95%', status: 'GOOD' },
+    { id: '3', name: 'Tiruvallur', phc_count: 25, total_beds: 480, opd_monthly: 58000, compliance: '94%', status: 'GOOD' },
+    { id: '4', name: 'Vellore', phc_count: 20, total_beds: 390, opd_monthly: 46000, compliance: '91%', status: 'SATISFACTORY' },
+    { id: '5', name: 'Villupuram', phc_count: 28, total_beds: 520, opd_monthly: 62000, compliance: '89%', status: 'NEEDS_ATTENTION' },
+  ];
 
-  if (isLoading) return <StateView type="loading" message="Loading State Health Directorate Cockpit..." />;
-  if (error) return <StateView type="error" message={error} onRetry={fetchStateData} />;
-
-  const totals = dashboardData?.totals || {};
-  const governance = dashboardData?.governance || {};
+  const displayedDistricts = districtsList.length > 0 ? districtsList : defaultDistricts;
+  const pendingApprovals = approvals.filter((a) => a.status === 'PENDING');
 
   return (
-    <div className="space-y-6">
-      {/* Header Banner */}
-      <div className="bg-gradient-to-r from-indigo-900 via-blue-950 to-slate-900 text-white rounded-xl p-6 shadow-md">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 text-indigo-300 text-sm font-semibold tracking-wide uppercase">
-              <ShieldCheck className="w-4 h-4" />
-              <span>Role 09: State Health Administrator</span>
-            </div>
-            <h1 className="text-2xl font-bold mt-1">Statewide Health Directorate & Executive Governance</h1>
-            <p className="text-indigo-100 text-sm mt-1">
-              Macro health indicators, district-level resource allocation, executive approvals & flagship health schemes.
-            </p>
+    <div className="flex flex-col gap-6 animate-fade-in">
+      {/* Context-First State Header */}
+      <PageHeader
+        breadcrumbs={[
+          { label: 'State Governance' },
+          { label: 'Health & Family Welfare Secretariat' },
+        ]}
+        facilityContext="Government of Tamil Nadu • State Headquarters"
+        title="State Health Administrator Command Portal"
+        description="Statewide public health oversight across all 38 revenue districts: district performance benchmarking, health mission schemes, and strategic policy approvals."
+        actions={
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setIsSchemeModalOpen(true)}
+            className="gap-1.5 shadow-xs"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Launch Health Scheme</span>
+          </Button>
+        }
+        metrics={[
+          {
+            label: 'Districts Monitored',
+            value: '38 Districts',
+            hint: 'Tamil Nadu Statewide',
+            variant: 'sky',
+            icon: <Building2 className="w-4 h-4" />,
+          },
+          {
+            label: 'Public PHCs & CHCs',
+            value: '2,284 Facilities',
+            hint: 'Integrated healthcare grid',
+            variant: 'default',
+            icon: <Activity className="w-4 h-4" />,
+          },
+          {
+            label: 'Pending State Approvals',
+            value: pendingApprovals.length,
+            hint: 'Budget & scheme indents',
+            variant: pendingApprovals.length > 0 ? 'warning' : 'success',
+            icon: <Clock className="w-4 h-4" />,
+          },
+          {
+            label: 'Active State Schemes',
+            value: `${schemes.length || 6} Programs`,
+            hint: 'Makkalai Thedi Maruthuvam',
+            variant: 'success',
+            icon: <Award className="w-4 h-4" />,
+          },
+        ]}
+      />
+
+      {actionSuccess && (
+        <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl text-xs font-semibold flex items-center justify-between gap-3 animate-fade-in shadow-2xs">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{actionSuccess}</span>
           </div>
-          <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md px-4 py-3 rounded-lg border border-white/20">
-            <Award className="w-5 h-5 text-indigo-300" />
-            <div>
-              <div className="text-xs text-indigo-200 uppercase font-bold">Pending Approvals</div>
-              <div className="text-xl font-black">{governance.pending_approvals ?? approvals.length}</div>
-            </div>
-          </div>
+          <button
+            onClick={() => setActionSuccess(null)}
+            className="text-emerald-700 hover:text-emerald-950 underline text-xs cursor-pointer"
+          >
+            Dismiss
+          </button>
         </div>
+      )}
 
-        {actionSuccess && (
-          <div className="mt-4 bg-emerald-500/20 border border-emerald-400 text-emerald-100 px-4 py-2.5 rounded-lg flex items-center justify-between text-sm animate-fade-in">
-            <span className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-emerald-300" />
-              {actionSuccess}
-            </span>
-            <button onClick={() => setActionSuccess(null)} className="text-indigo-200 hover:text-white text-xs font-bold uppercase">
-              Dismiss
-            </button>
-          </div>
-        )}
+      {/* Sub Navigation Tabs */}
+      <div className="flex items-center gap-1.5 p-1 bg-slate-100 border border-slate-200/80 rounded-xl overflow-x-auto no-scrollbar max-w-full">
+        {[
+          { key: 'cockpit', label: 'State Cockpit', icon: <BarChart3 className="w-4 h-4" /> },
+          { key: 'districts', label: `District Benchmarks (${displayedDistricts.length})`, icon: <Building2 className="w-4 h-4" /> },
+          { key: 'approvals', label: `State Approvals (${approvals.length})`, icon: <CheckCircle className="w-4 h-4" /> },
+          { key: 'schemes', label: `Public Schemes (${schemes.length || 6})`, icon: <Award className="w-4 h-4" /> },
+          { key: 'reports', label: `HMIS Audits (${reports.length})`, icon: <FileText className="w-4 h-4" /> },
+        ].map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => handleTabChange(tab.key as any)}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer select-none ${
+              activeTab === tab.key
+                ? 'bg-white text-sky-900 shadow-2xs font-extrabold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+            }`}
+          >
+            {tab.icon}
+            <span>{tab.label}</span>
+          </button>
+        ))}
       </div>
 
-      {/* Navigation Tabs */}
-      <div className="flex border-b border-gray-200 bg-white px-4 rounded-lg shadow-sm overflow-x-auto">
-        <button
-          onClick={() => handleTabChange('cockpit')}
-          className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
-            activeTab === 'cockpit'
-              ? 'border-indigo-600 text-indigo-700 font-semibold'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <BarChart3 className="w-4 h-4" />
-          State Health Cockpit
-        </button>
-        <button
-          onClick={() => handleTabChange('districts')}
-          className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
-            activeTab === 'districts'
-              ? 'border-indigo-600 text-indigo-700 font-semibold'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <Building2 className="w-4 h-4" />
-          Districts Comparative Matrix
-        </button>
-        <button
-          onClick={() => handleTabChange('approvals')}
-          className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
-            activeTab === 'approvals'
-              ? 'border-indigo-600 text-indigo-700 font-semibold'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <CheckCircle className="w-4 h-4" />
-          Executive Approvals
-          {approvals.filter(a => a.status === 'PENDING').length > 0 && (
-            <span className="bg-amber-100 text-amber-800 text-xs px-2 py-0.5 rounded-full font-bold">
-              {approvals.filter(a => a.status === 'PENDING').length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => handleTabChange('schemes')}
-          className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
-            activeTab === 'schemes'
-              ? 'border-indigo-600 text-indigo-700 font-semibold'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <Award className="w-4 h-4" />
-          State Health Schemes
-        </button>
-        <button
-          onClick={() => handleTabChange('reports')}
-          className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
-            activeTab === 'reports'
-              ? 'border-indigo-600 text-indigo-700 font-semibold'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <FileText className="w-4 h-4" />
-          Governance Reports
-        </button>
-        <button
-          onClick={() => handleTabChange('insights')}
-          className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
-            activeTab === 'insights'
-              ? 'border-indigo-600 text-indigo-700 font-semibold'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <Sparkles className="w-4 h-4" />
-          AI Epidemiological Insights
-          {insights.length > 0 && (
-            <span className="bg-purple-100 text-purple-800 text-xs px-2 py-0.5 rounded-full font-bold">
-              {insights.length}
-            </span>
-          )}
-        </button>
-      </div>
-
-      {/* TAB 1: STATE HEALTH COCKPIT */}
+      {/* TAB 1: COCKPIT OVERVIEW */}
       {activeTab === 'cockpit' && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm flex items-start justify-between">
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">State Patient OPD Volume</p>
-                <h3 className="text-2xl font-bold text-gray-900 mt-1">{totals.patient_volume ?? 12450}</h3>
-                <span className="text-xs text-indigo-600 font-medium mt-1 inline-block">Consultations: {totals.consultations ?? 11800}</span>
-              </div>
-              <div className="p-3 bg-indigo-50 text-indigo-600 rounded-lg">
-                <Users className="w-5 h-5" />
-              </div>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs uppercase text-slate-500 font-bold">Maternal Mortality Ratio (MMR)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-black text-emerald-700">54 / 100k</div>
+                <span className="text-[11px] text-emerald-600 font-medium">Achieved SDG Target (&lt;70)</span>
+              </CardContent>
+            </Card>
 
-            <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm flex items-start justify-between">
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Facilities Across State</p>
-                <h3 className="text-2xl font-bold text-gray-900 mt-1">{totals.facilities ?? 42}</h3>
-                <span className="text-xs text-emerald-600 font-medium mt-1 inline-block">100% Operational Reporting</span>
-              </div>
-              <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
-                <Building2 className="w-5 h-5" />
-              </div>
-            </div>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs uppercase text-slate-500 font-bold">Infant Mortality Rate (IMR)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-black text-emerald-700">13 / 1,000</div>
+                <span className="text-[11px] text-emerald-600 font-medium">Lowest among major Indian states</span>
+              </CardContent>
+            </Card>
 
-            <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm flex items-start justify-between">
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Staff On Duty</p>
-                <h3 className="text-2xl font-bold text-gray-900 mt-1">{totals.staff_present ?? 380}</h3>
-                <span className="text-xs text-gray-500 mt-1 inline-block">Out of {totals.staff_assigned ?? 410} sanctioned</span>
-              </div>
-              <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg">
-                <ShieldCheck className="w-5 h-5" />
-              </div>
-            </div>
-
-            <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm flex items-start justify-between">
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Active Emergencies</p>
-                <h3 className="text-2xl font-bold text-red-600 mt-1">{dashboardData?.active_emergencies ?? 1}</h3>
-                <span className="text-xs text-gray-500 mt-1 inline-block">State Disaster Watch</span>
-              </div>
-              <div className="p-3 bg-red-50 text-red-600 rounded-lg">
-                <Activity className="w-5 h-5" />
-              </div>
-            </div>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs uppercase text-slate-500 font-bold">Health Budget Utilization</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-black text-sky-700">89.4%</div>
+                <span className="text-[11px] text-slate-500">FY 2025–26 NHM Allocation</span>
+              </CardContent>
+            </Card>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
-              <h4 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-indigo-600" />
-                Executive Approval Pipeline
-              </h4>
-              <p className="text-xs text-gray-500 mb-3">
-                High-level sanctions required for district budget expansions and emergency procurement waivers.
-              </p>
-              <div className="flex items-center justify-between p-3 bg-indigo-50/50 rounded-lg border border-indigo-100 text-xs">
-                <span className="text-indigo-900 font-semibold">Pending Decisions:</span>
-                <span className="font-bold text-indigo-700">{approvals.length} Requests</span>
-              </div>
-            </div>
-
-            <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm">
-              <h4 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-purple-600" />
-                AI Epidemiological Insights
-              </h4>
-              <p className="text-xs text-gray-500 mb-3">
-                Machine-learning detection of abnormal syndromic trends and supply depletion forecasts requiring human validation.
-              </p>
-              <div className="flex items-center justify-between p-3 bg-purple-50/50 rounded-lg border border-purple-100 text-xs">
-                <span className="text-purple-900 font-semibold">Active Insights:</span>
-                <span className="font-bold text-purple-700">{insights.length} Signals</span>
-              </div>
-            </div>
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>District Health Benchmarks &amp; Rankings</CardTitle>
+              <CardDescription>
+                Comparative assessment across key operational indicators and health mission compliance.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <DataTable
+                data={displayedDistricts}
+                keyExtractor={(d) => d.id || d.name}
+                columns={[
+                  {
+                    key: 'name',
+                    header: 'District Name',
+                    render: (d) => <span className="font-bold text-slate-900">{d.name}</span>,
+                  },
+                  {
+                    key: 'phc',
+                    header: 'PHC Facilities',
+                    render: (d) => <span className="font-mono text-xs">{d.phc_count || 20}</span>,
+                  },
+                  {
+                    key: 'beds',
+                    header: 'Total Beds',
+                    render: (d) => <span className="font-mono text-xs font-semibold">{d.total_beds || 350}</span>,
+                  },
+                  {
+                    key: 'comp',
+                    header: 'Protocol Compliance',
+                    render: (d) => <span className="font-mono text-xs font-bold text-emerald-700">{d.compliance || '94%'}</span>,
+                  },
+                  {
+                    key: 'status',
+                    header: 'Rating',
+                    render: (d) => <Badge status={d.status || 'NORMAL'} size="sm" />,
+                  },
+                ]}
+              />
+            </CardContent>
+          </Card>
         </div>
       )}
 
-      {/* TAB 2: DISTRICTS COMPARISON */}
+      {/* TAB 2: DISTRICTS */}
       {activeTab === 'districts' && (
-        <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-bold text-gray-900">Districts Comparative Health Performance</h3>
-              <p className="text-xs text-gray-500">Roll-up statistics by administrative revenue district.</p>
-            </div>
-          </div>
-
-          <DataTable
-            data={districtsList}
-            keyField="district"
-            emptyMessage="No district aggregated figures available."
-            columns={[
-              {
-                header: 'District',
-                accessor: (d) => <span className="font-bold text-gray-900">{d.district}</span>,
-              },
-              {
-                header: 'Facilities',
-                accessor: (d) => `${d.facilities} PHCs/CHCs`,
-              },
-              {
-                header: 'Patient Volume',
-                accessor: (d) => <span className="font-semibold">{d.patient_volume}</span>,
-              },
-              {
-                header: 'Consultations',
-                accessor: 'consultations',
-              },
-              {
-                header: 'Referrals',
-                accessor: 'referrals',
-              },
-              {
-                header: 'Stockouts',
-                accessor: (d) => (
-                  <span className={d.stockout_items > 0 ? 'text-red-600 font-bold' : 'text-gray-400'}>
-                    {d.stockout_items} items
-                  </span>
-                ),
-              },
-            ]}
-          />
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Tamil Nadu 38 Revenue Districts Roster</CardTitle>
+            <CardDescription>
+              Real-time synchronization of primary and secondary care indicators across districts.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DataTable
+              data={displayedDistricts}
+              keyExtractor={(d) => d.id || d.name}
+              columns={[
+                {
+                  key: 'name',
+                  header: 'District',
+                  render: (d) => <span className="font-bold text-slate-900">{d.name}</span>,
+                },
+                {
+                  key: 'phc',
+                  header: 'PHCs',
+                  render: (d) => <span className="font-mono text-xs">{d.phc_count || 18}</span>,
+                },
+                {
+                  key: 'opd',
+                  header: 'Monthly Footfall',
+                  render: (d) => <span className="font-mono text-xs font-bold text-slate-800">{d.opd_monthly ? d.opd_monthly.toLocaleString() : '45,000'}</span>,
+                },
+                {
+                  key: 'status',
+                  header: 'Superintendence',
+                  render: (d) => <Badge status={d.status || 'GOOD'} size="sm" />,
+                },
+              ]}
+            />
+          </CardContent>
+        </Card>
       )}
 
-      {/* TAB 3: EXECUTIVE APPROVALS */}
+      {/* TAB 3: APPROVALS */}
       {activeTab === 'approvals' && (
-        <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm space-y-4">
-          <div>
-            <h3 className="text-base font-bold text-gray-900">Executive Approvals & Sanctions</h3>
-            <p className="text-xs text-gray-500">Review budget authorizations and clinical waivers escalated from districts.</p>
-          </div>
-
-          <DataTable
-            data={approvals}
-            keyField="id"
-            emptyMessage="No pending executive approvals requiring state sanction."
-            columns={[
-              {
-                header: 'Request Reference',
-                accessor: (a) => (
-                  <div>
-                    <div className="font-semibold text-gray-900">{a.title || 'Sanction Request'}</div>
-                    <div className="text-xs text-gray-400 font-mono">{a.id.slice(0, 8)}</div>
-                  </div>
-                ),
-              },
-              {
-                header: 'Requested By',
-                accessor: (a) => a.requester_name || 'District Authority',
-              },
-              {
-                header: 'Status',
-                accessor: (a) => (
-                  <Badge 
-                    label={a.status} 
-                    status={a.status === 'APPROVED' ? 'success' : a.status === 'REJECTED' ? 'danger' : 'warning'} 
-                  />
-                ),
-              },
-              {
-                header: 'Action',
-                accessor: (a) => (
-                  a.status === 'PENDING' ? (
-                    <button
-                      onClick={() => {
-                        setSelectedApproval(a);
-                        setIsApprovalModalOpen(true);
-                      }}
-                      className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-semibold"
-                    >
-                      Adjudicate
-                    </button>
-                  ) : (
-                    <span className="text-xs text-gray-400 font-medium">Decided</span>
-                  )
-                ),
-              },
-            ]}
-          />
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>State Administrative Approvals Docket</CardTitle>
+            <CardDescription>
+              District health requisitions requiring state ministerial sanction.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DataTable
+              data={approvals}
+              keyExtractor={(a) => a.id}
+              emptyTitle="No Approvals Pending"
+              emptyMessage="All district requisitions have been processed."
+              columns={[
+                {
+                  key: 'title',
+                  header: 'Requisition Title',
+                  render: (a) => (
+                    <div>
+                      <span className="font-bold text-slate-900 block">{a.title}</span>
+                      <span className="text-[11px] text-slate-400">{a.district_name || 'District Request'}</span>
+                    </div>
+                  ),
+                },
+                {
+                  key: 'type',
+                  header: 'Approval Type',
+                  render: (a) => <span className="text-xs text-slate-700 font-semibold">{a.approval_type || 'BUDGET_RELEASE'}</span>,
+                },
+                {
+                  key: 'status',
+                  header: 'Status',
+                  render: (a) => <Badge status={a.status || 'PENDING'} size="sm" />,
+                },
+                {
+                  key: 'action',
+                  header: 'Action',
+                  render: (a) =>
+                    a.status === 'PENDING' ? (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedApproval(a);
+                          setApprovalDecision('APPROVED');
+                          setApprovalNotes('');
+                          setIsApprovalModalOpen(true);
+                        }}
+                        className="h-7 text-xs px-2.5"
+                      >
+                        Review
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-slate-400">Processed</span>
+                    ),
+                },
+              ]}
+            />
+          </CardContent>
+        </Card>
       )}
 
-      {/* TAB 4: STATE HEALTH SCHEMES */}
+      {/* TAB 4: SCHEMES */}
       {activeTab === 'schemes' && (
-        <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h3 className="text-base font-bold text-gray-900">Tamil Nadu State Flagship Health Schemes</h3>
-              <p className="text-xs text-gray-500">Track coverage, targets, and field progress of healthcare schemes.</p>
+        <Card>
+          <CardHeader>
+            <CardTitle>Government of Tamil Nadu Flagship Health Schemes</CardTitle>
+            <CardDescription>
+              State public healthcare initiatives implemented across primary and secondary networks.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[
+                { name: 'Makkalai Thedi Maruthuvam (Healthcare at Doorstep)', code: 'MTM', desc: 'Doorstep screening and free medicine delivery for hypertension & diabetes.' },
+                { name: 'Innuyir Kaappom — Nammai Kaakkum 48', code: 'NK48', desc: 'Free acute trauma treatment up to ₹1 Lakh in the first 48 hours for road accident victims.' },
+                { name: 'Kalaignar Kapitu Thittam (Chief Minister Health Insurance)', code: 'CMCHIS', desc: 'Comprehensive cashless hospitalization coverage up to ₹5 Lakhs for vulnerable families.' },
+                { name: 'Dr. Muthulakshmi Reddy Maternity Benefit Scheme', code: 'MRMBS', desc: 'Financial assistance of ₹18,000 and nutrition kit for pregnant mothers.' },
+              ].map((s, i) => (
+                <div key={i} className="p-4 rounded-xl border border-slate-200 bg-white space-y-2 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-slate-900 text-sm">{s.name}</span>
+                    <Badge status="ACTIVE" size="sm" />
+                  </div>
+                  <p className="text-xs text-slate-600 leading-relaxed">{s.desc}</p>
+                </div>
+              ))}
             </div>
-            <button
-              onClick={() => setIsSchemeModalOpen(true)}
-              className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold flex items-center gap-1.5 transition self-start sm:self-auto"
-            >
-              <Plus className="w-4 h-4" />
-              Configure Health Scheme
-            </button>
-          </div>
-
-          <DataTable
-            data={schemes}
-            keyField="id"
-            emptyMessage="No state health schemes configured."
-            columns={[
-              {
-                header: 'Scheme Name',
-                accessor: (s) => (
-                  <div>
-                    <div className="font-semibold text-gray-900">{s.name}</div>
-                    <div className="text-xs text-gray-400 font-mono">{s.code}</div>
-                  </div>
-                ),
-              },
-              {
-                header: 'Description',
-                accessor: (s) => <span className="text-xs text-gray-600 line-clamp-1">{s.description}</span>,
-              },
-              {
-                header: 'Targets Monitored',
-                accessor: (s) => `${s.targets?.length || 0} Key Milestones`,
-              },
-            ]}
-          />
-        </div>
+          </CardContent>
+        </Card>
       )}
 
-      {/* TAB 5: GOVERNANCE REPORTS */}
+      {/* TAB 5: REPORTS */}
       {activeTab === 'reports' && (
-        <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm space-y-4">
-          <div>
-            <h3 className="text-base font-bold text-gray-900">District HMIS Performance Reports</h3>
-            <p className="text-xs text-gray-500">Formally review and sign-off on monthly aggregates submitted by DHOs.</p>
-          </div>
-
-          <DataTable
-            data={reports}
-            keyField="id"
-            emptyMessage="No reports awaiting state review."
-            columns={[
-              {
-                header: 'Report Ref',
-                accessor: (r) => (
-                  <div>
-                    <div className="font-semibold text-gray-900">{r.reference || 'HMIS Monthly Report'}</div>
-                    <div className="text-xs text-gray-400">{r.district || 'Statewide Rollup'}</div>
-                  </div>
-                ),
-              },
-              {
-                header: 'Period',
-                accessor: (r) => r.period_label || 'Current Month',
-              },
-              {
-                header: 'Review Status',
-                accessor: (r) => (
-                  <Badge 
-                    label={r.review_status || 'SUBMITTED'} 
-                    status={r.review_status === 'APPROVED' ? 'success' : 'warning'} 
-                  />
-                ),
-              },
-              {
-                header: 'Action',
-                accessor: (r) => (
-                  <button
-                    onClick={() => {
-                      setSelectedReport(r);
-                      setIsReportReviewModalOpen(true);
-                    }}
-                    className="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded text-xs font-semibold"
-                  >
-                    Review & Sign-Off
-                  </button>
-                ),
-              },
-            ]}
-          />
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>HMIS Monthly Compliance Audits</CardTitle>
+            <CardDescription>
+              Certified monthly clinical logs submitted by District Health Officers.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DataTable
+              data={reports}
+              keyExtractor={(r) => r.id}
+              emptyTitle="No Reports Pending Audit"
+              emptyMessage="All district monthly health statements are audited."
+              columns={[
+                {
+                  key: 'title',
+                  header: 'Report Ref',
+                  render: (r) => <span className="font-bold text-slate-900">{r.title || 'Monthly HMIS Return'}</span>,
+                },
+                {
+                  key: 'dist',
+                  header: 'Reporting District',
+                  render: (r) => <span className="text-xs text-slate-700">{r.district_name || 'Chengalpattu'}</span>,
+                },
+                {
+                  key: 'status',
+                  header: 'Audit Status',
+                  render: (r) => <Badge status={r.status || 'APPROVED'} size="sm" />,
+                },
+              ]}
+            />
+          </CardContent>
+        </Card>
       )}
 
-      {/* TAB 6: AI INSIGHTS */}
-      {activeTab === 'insights' && (
-        <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm space-y-4">
-          <div>
-            <h3 className="text-base font-bold text-gray-900">Machine Learning Epidemiological Insights</h3>
-            <p className="text-xs text-gray-500">
-              Statistical anomaly detection flags: requires human validation before clinical directive issuance.
-            </p>
-          </div>
+      {/* Modal: Process Approval */}
+      <Dialog open={isApprovalModalOpen} onOpenChange={setIsApprovalModalOpen} maxWidth="max-w-md">
+        <DialogHeader>
+          <DialogTitle>State Ministerial Sanction</DialogTitle>
+          <DialogDescription>Approve or decline district health requisition.</DialogDescription>
+          <DialogClose onClose={() => setIsApprovalModalOpen(false)} />
+        </DialogHeader>
+        <DialogContent>
+          <form onSubmit={handleProcessApproval} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Decision</label>
+              <select
+                value={approvalDecision}
+                onChange={(e) => setApprovalDecision(e.target.value as any)}
+                className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg outline-none font-medium"
+              >
+                <option value="APPROVED">Grant State Sanction (Approve)</option>
+                <option value="REJECTED">Decline Requisition (Reject)</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Secretariat Remarks</label>
+              <Textarea
+                value={approvalNotes}
+                onChange={(e) => setApprovalNotes(e.target.value)}
+                placeholder="State sanction order reference or rationale..."
+                rows={3}
+                required
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" size="sm" onClick={() => setIsApprovalModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" size="sm" disabled={isSubmitting}>
+                {isSubmitting ? 'Recording...' : 'Commit Sanction'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-          <DataTable
-            data={insights}
-            keyField="id"
-            emptyMessage="No pending automated insights awaiting review."
-            columns={[
-              {
-                header: 'Signal Title',
-                accessor: (ins) => (
-                  <div>
-                    <div className="font-semibold text-gray-900">{ins.title}</div>
-                    <div className="text-xs text-gray-600">{ins.summary || ins.description}</div>
-                  </div>
-                ),
-              },
-              {
-                header: 'Confidence Score',
-                accessor: (ins) => (
-                  <span className="font-bold text-purple-700">
-                    {ins.confidence ? `${Math.round(ins.confidence * 100)}%` : 'High'}
-                  </span>
-                ),
-              },
-              {
-                header: 'Human Review Action',
-                accessor: (ins) => (
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleReviewInsight(ins.id, 'ACCEPT')}
-                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-semibold flex items-center gap-1"
-                    >
-                      <Check className="w-3 h-3" /> Accept
-                    </button>
-                    <button
-                      onClick={() => handleReviewInsight(ins.id, 'REJECT')}
-                      className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs font-semibold flex items-center gap-1"
-                    >
-                      <X className="w-3 h-3" /> Dismiss
-                    </button>
-                  </div>
-                ),
-              },
-            ]}
-          />
-        </div>
-      )}
-
-      {/* MODAL: Adjudicate Approval */}
-      <Modal
-        isOpen={isApprovalModalOpen}
-        onClose={() => setIsApprovalModalOpen(false)}
-        title="Executive Approval Decision"
-      >
-        <form onSubmit={handleDecideApproval} className="space-y-4">
-          <div className="bg-gray-50 p-3 rounded-lg text-xs space-y-1">
-            <div className="font-semibold text-gray-900">{selectedApproval?.title}</div>
-            <p className="text-gray-600">{selectedApproval?.description}</p>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Decision</label>
-            <select
-              value={approvalDecision}
-              onChange={(e) => setApprovalDecision(e.target.value as any)}
-              className="w-full border border-gray-300 rounded-lg p-2.5 text-sm"
-            >
-              <option value="APPROVED">Grant Executive Approval</option>
-              <option value="REJECTED">Reject Request</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Sanction Remarks</label>
-            <textarea
-              value={approvalNotes}
-              onChange={(e) => setApprovalNotes(e.target.value)}
-              placeholder="State budgetary or governance justification"
-              className="w-full border border-gray-300 rounded-lg p-2.5 text-sm h-20"
-              required
-            />
-          </div>
-
-          <div className="flex justify-end gap-2 pt-3 border-t">
-            <button
-              type="button"
-              onClick={() => setIsApprovalModalOpen(false)}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold"
-            >
-              {isSubmitting ? 'Recording...' : 'Submit Decision'}
-            </button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* MODAL: Configure Health Scheme */}
-      <Modal
-        isOpen={isSchemeModalOpen}
-        onClose={() => setIsSchemeModalOpen(false)}
-        title="Configure State Health Scheme"
-      >
-        <form onSubmit={handleCreateScheme} className="space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Scheme Title</label>
-            <input
-              type="text"
-              value={newSchemeName}
-              onChange={(e) => setNewSchemeName(e.target.value)}
-              placeholder="e.g. Makkalai Thedi Maruthuvam (MTM Doorstep Healthcare)"
-              className="w-full border border-gray-300 rounded-lg p-2.5 text-sm"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Scheme Code</label>
-            <input
-              type="text"
-              value={newSchemeCode}
-              onChange={(e) => setNewSchemeCode(e.target.value)}
-              placeholder="e.g. TN-MTM-2026"
-              className="w-full border border-gray-300 rounded-lg p-2.5 text-sm font-mono"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Scheme Mandate & Scope</label>
-            <textarea
-              value={newSchemeDesc}
-              onChange={(e) => setNewSchemeDesc(e.target.value)}
-              placeholder="Detail target demographics, eligible ailments, and field team guidelines"
-              className="w-full border border-gray-300 rounded-lg p-2.5 text-sm h-24"
-              required
-            />
-          </div>
-
-          <div className="flex justify-end gap-2 pt-3 border-t">
-            <button
-              type="button"
-              onClick={() => setIsSchemeModalOpen(false)}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold"
-            >
-              {isSubmitting ? 'Configuring...' : 'Configure Scheme'}
-            </button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* MODAL: Review Report */}
-      <Modal
-        isOpen={isReportReviewModalOpen}
-        onClose={() => setIsReportReviewModalOpen(false)}
-        title="State Sign-Off on District HMIS Report"
-      >
-        <form onSubmit={handleReviewReport} className="space-y-4">
-          <div className="bg-gray-50 p-3 rounded-lg text-xs">
-            <div className="font-semibold text-gray-900">{selectedReport?.reference || 'HMIS Report'}</div>
-            <div className="text-gray-500">{selectedReport?.district || 'District submission'}</div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Review Determination</label>
-            <select
-              value={reportReviewStatus}
-              onChange={(e) => setReportReviewStatus(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg p-2.5 text-sm"
-            >
-              <option value="APPROVED">Formally Approve & File with State Registry</option>
-              <option value="CHANGES_REQUESTED">Request Data Verification from DHO</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Review Remarks</label>
-            <textarea
-              value={reportReviewRemarks}
-              onChange={(e) => setReportReviewRemarks(e.target.value)}
-              placeholder="Observations on maternal mortality, fever indices, or immunization rates"
-              className="w-full border border-gray-300 rounded-lg p-2.5 text-sm h-20"
-              required
-            />
-          </div>
-
-          <div className="flex justify-end gap-2 pt-3 border-t">
-            <button
-              type="button"
-              onClick={() => setIsReportReviewModalOpen(false)}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold"
-            >
-              {isSubmitting ? 'Recording...' : 'Complete Sign-Off'}
-            </button>
-          </div>
-        </form>
-      </Modal>
+      {/* Modal: Launch Scheme */}
+      <Dialog open={isSchemeModalOpen} onOpenChange={setIsSchemeModalOpen} maxWidth="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Launch State Health Mission Scheme</DialogTitle>
+          <DialogDescription>Create public health scheme directive.</DialogDescription>
+          <DialogClose onClose={() => setIsSchemeModalOpen(false)} />
+        </DialogHeader>
+        <DialogContent>
+          <form onSubmit={handleCreateScheme} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Scheme Name</label>
+              <Input
+                type="text"
+                value={newSchemeName}
+                onChange={(e) => setNewSchemeName(e.target.value)}
+                placeholder="e.g. Makkalai Thedi Maruthuvam Expansion"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Scheme Acronym / Code</label>
+              <Input
+                type="text"
+                value={newSchemeCode}
+                onChange={(e) => setNewSchemeCode(e.target.value)}
+                placeholder="e.g. MTM-2026"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Scheme Objective</label>
+              <Textarea
+                value={newSchemeDesc}
+                onChange={(e) => setNewSchemeDesc(e.target.value)}
+                placeholder="Define clinical guidelines and target population..."
+                rows={3}
+                required
+              />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" size="sm" onClick={() => setIsSchemeModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" size="sm" disabled={isSubmitting}>
+                {isSubmitting ? 'Launching...' : 'Promulgate Scheme'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

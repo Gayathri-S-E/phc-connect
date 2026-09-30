@@ -71,7 +71,7 @@ const UnauthenticatedApp: React.FC = () => {
       if (result.success && result.path && result.path !== '/login') {
         navigate(result.path);
       } else if (!result.success) {
-        setLoginError(result.error || 'Failed to authenticate demo account.');
+        setLoginError(result.error || 'Could not sign in. Please try again.');
       }
     } finally {
       setIsSubmitting(false);
@@ -107,67 +107,90 @@ const UnauthenticatedApp: React.FC = () => {
 
       {/* Login Modal Overlay */}
       {showLoginModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fade-in">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-5 relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white border border-slate-200/90 rounded-2xl p-6 sm:p-8 max-w-md w-full max-h-[92vh] overflow-y-auto shadow-2xl space-y-5 relative">
             <button
               onClick={() => setShowLoginModal(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-white text-lg font-bold p-1"
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-800 text-lg font-bold p-1 cursor-pointer"
             >
               ✕
             </button>
 
             <div>
-              <div className="flex items-center gap-2 text-xs font-bold text-sky-400 uppercase">
+              <div className="flex items-center gap-2 text-xs font-bold text-sky-700 uppercase">
                 <Lock className="w-4 h-4" />
                 Sign In to Platform
               </div>
-              <h3 className="text-xl font-bold text-white mt-1">Portal Authentication</h3>
-              <p className="text-xs text-slate-400">Enter system credentials to access authorized role views.</p>
+              <h3 className="text-xl font-extrabold text-slate-900 mt-1">Med2Us Authentication</h3>
+              <p className="text-xs text-slate-500">Enter system credentials to access authorized role views.</p>
             </div>
 
             {loginError && (
-              <div className="p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-xs text-red-200">
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-800 font-medium">
                 {loginError}
               </div>
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase mb-1">Email Address</label>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Email Address</label>
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="officer@demo.smarthealth.com"
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm text-slate-900 focus:bg-white focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-300 uppercase mb-1">Password</label>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Password</label>
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none font-mono"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm text-slate-900 focus:bg-white focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none font-mono transition"
                   required
                 />
-                <span className="text-[11px] text-slate-400 mt-1 inline-block">Default demo password: Demo@Health2026</span>
+                <span className="text-[11px] text-slate-500 mt-1 inline-block">Default demo password: Demo@Health2026</span>
               </div>
 
               <button
                 type="submit"
                 disabled={isSubmitting || isLoading}
-                className="w-full py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-lg text-sm transition shadow-lg shadow-sky-600/20 flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-lg text-sm transition shadow-md shadow-sky-600/20 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
               >
                 <Lock className="w-4 h-4" />
                 {isSubmitting ? 'Authenticating...' : 'Sign In to Portal'}
               </button>
             </form>
 
-            <div className="pt-4 border-t border-slate-800 text-center text-xs text-slate-400">
-              Smart Health & Supply Chain Resilience • Government of Tamil Nadu
+            <div className="pt-4 border-t border-slate-200">
+              <div className="text-[11px] font-bold text-slate-700 uppercase mb-2">
+                Demo credentials · password <span className="font-mono text-sky-700 font-bold">Demo@Health2026</span>
+              </div>
+              <div className="max-h-48 overflow-y-auto space-y-1 pr-1">
+                {Object.entries(DEMO_ACCOUNTS).map(([key, acc]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => { setEmail(acc.email); setPassword('Demo@Health2026'); setLoginError(null); }}
+                    className={`w-full text-left px-3 py-1.5 rounded-lg border text-xs transition cursor-pointer ${
+                      email === acc.email
+                        ? 'border-sky-500 bg-sky-50 text-sky-950 font-bold'
+                        : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50 bg-white text-slate-700'
+                    }`}
+                  >
+                    <span className="block font-bold text-slate-900">{acc.name}</span>
+                    <span className="block font-mono text-slate-500 truncate">{acc.email}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-slate-200 text-center text-xs text-slate-500 font-medium">
+              Med2Us — Connected Healthcare &amp; Supply Chain Resilience • Government of Tamil Nadu
             </div>
           </div>
         </div>
@@ -176,12 +199,43 @@ const UnauthenticatedApp: React.FC = () => {
   );
 };
 
+// --- ROLE GUARD ---
+// Client-side route protection (UX layer). The backend remains the authority and re-checks every request.
+const SUPER = 'SUPER_ADMIN';
+const ROUTE_ROLES: Record<string, string[]> = {
+  '/patient': ['PATIENT'],
+  '/clinical': ['DOCTOR', 'NURSE'],
+  '/facility': ['PHC_IN_CHARGE'],
+  '/pharmacy': ['PHARMACIST', 'DOCTOR'],
+  '/district': ['DISTRICT_HEALTH_OFFICER'],
+  '/supply': ['DISTRICT_SUPPLY_OFFICER', 'STATE_SUPPLY_MANAGER'],
+  '/emergency': ['DISTRICT_EMERGENCY_COORDINATOR'],
+  '/state': ['STATE_HEALTH_ADMIN'],
+  '/governance': ['DISTRICT_HEALTH_OFFICER', 'STATE_HEALTH_ADMIN', 'NATIONAL_HEALTH_AUTHORITY'],
+  '/analytics': ['STATE_PUBLIC_HEALTH_ANALYST'],
+  '/national': ['NATIONAL_HEALTH_AUTHORITY'],
+  '/platform': [],
+  '/capacity': ['PHC_IN_CHARGE', 'DISTRICT_HEALTH_OFFICER', 'DISTRICT_SUPPLY_OFFICER', 'DISTRICT_EMERGENCY_COORDINATOR',
+    'STATE_HEALTH_ADMIN', 'STATE_SUPPLY_MANAGER', 'STATE_PUBLIC_HEALTH_ANALYST', 'NATIONAL_HEALTH_AUTHORITY', 'DOCTOR', 'NURSE'],
+  '/intelligence': ['PHC_IN_CHARGE', 'PHARMACIST', 'DISTRICT_HEALTH_OFFICER', 'DISTRICT_SUPPLY_OFFICER',
+    'STATE_HEALTH_ADMIN', 'STATE_SUPPLY_MANAGER', 'STATE_PUBLIC_HEALTH_ANALYST', 'NATIONAL_HEALTH_AUTHORITY'],
+  '/facilities/nearest': ['*'],
+  '/admin/google': ['STATE_HEALTH_ADMIN', 'NATIONAL_HEALTH_AUTHORITY'],
+};
+
+const RequireRole: React.FC<{ prefix: string; fallback: string; children: React.ReactElement }> = ({ prefix, fallback, children }) => {
+  const { activeRole } = useAuth();
+  const allowed = ROUTE_ROLES[prefix] ?? [];
+  const ok = !!activeRole && (activeRole === SUPER || allowed.includes('*') || allowed.includes(activeRole));
+  return ok ? children : <Navigate to={fallback} replace />;
+};
+
 // --- AUTHENTICATED APP ROUTER ---
 const AuthenticatedApp: React.FC = () => {
   const { user, isAuthenticated, isLoading, activeRole } = useAuth();
 
   if (isLoading) {
-    return <StateView type="loading" message="Verifying session and database permissions..." />;
+    return <StateView type="loading" message="Signing you in..." />;
   }
 
   if (!isAuthenticated || !user) {
@@ -208,92 +262,96 @@ const AuthenticatedApp: React.FC = () => {
     }
   };
 
+  const home = getDefaultPathForRole();
+
   return (
     <Layout>
       <Routes>
         {/* Role 01: Patient Portal */}
-        <Route path="/patient" element={<PatientPortal />} />
-        <Route path="/patient/*" element={<PatientPortal />} />
+        <Route path="/patient" element={<RequireRole prefix="/patient" fallback={home}><PatientPortal /></RequireRole>} />
+        <Route path="/patient/*" element={<RequireRole prefix="/patient" fallback={home}><PatientPortal /></RequireRole>} />
 
         {/* Role 02 & 03: Clinical Portals (Doctor & Nurse) */}
-        <Route path="/clinical/queue" element={<DoctorPortal />} />
-        <Route path="/clinical/patients" element={<DoctorPortal />} />
-        <Route path="/clinical/labs" element={<DoctorPortal />} />
-        <Route path="/clinical/inventory" element={<DoctorPortal />} />
-        <Route path="/clinical/triage" element={<NursePortal />} />
-        <Route path="/clinical/registration" element={<NursePortal />} />
-        <Route path="/clinical/coldchain" element={<NursePortal />} />
-        <Route path="/clinical/immunization" element={<NursePortal />} />
-        <Route path="/clinical/*" element={activeRole === 'NURSE' ? <NursePortal /> : <DoctorPortal />} />
+        <Route path="/clinical/queue" element={<RequireRole prefix="/clinical" fallback={home}><DoctorPortal /></RequireRole>} />
+        <Route path="/clinical/patients" element={<RequireRole prefix="/clinical" fallback={home}><DoctorPortal /></RequireRole>} />
+        <Route path="/clinical/labs" element={<RequireRole prefix="/clinical" fallback={home}><DoctorPortal /></RequireRole>} />
+        <Route path="/clinical/inventory" element={<RequireRole prefix="/clinical" fallback={home}><DoctorPortal /></RequireRole>} />
+        <Route path="/clinical/triage" element={<RequireRole prefix="/clinical" fallback={home}><NursePortal /></RequireRole>} />
+        <Route path="/clinical/registration" element={<RequireRole prefix="/clinical" fallback={home}><NursePortal /></RequireRole>} />
+        <Route path="/clinical/coldchain" element={<RequireRole prefix="/clinical" fallback={home}><NursePortal /></RequireRole>} />
+        <Route path="/clinical/immunization" element={<RequireRole prefix="/clinical" fallback={home}><NursePortal /></RequireRole>} />
+        <Route path="/clinical/*" element={<RequireRole prefix="/clinical" fallback={home}>{activeRole === 'NURSE' ? <NursePortal /> : <DoctorPortal />}</RequireRole>} />
 
         {/* Role 04: PHC In-Charge Facility Admin Portal */}
-        <Route path="/facility" element={<FacilityAdminPortal />} />
-        <Route path="/facility/*" element={<FacilityAdminPortal />} />
+        <Route path="/facility" element={<RequireRole prefix="/facility" fallback={home}><FacilityAdminPortal /></RequireRole>} />
+        <Route path="/facility/*" element={<RequireRole prefix="/facility" fallback={home}><FacilityAdminPortal /></RequireRole>} />
 
         {/* Role 05: Pharmacist Dispensary Portal */}
-        <Route path="/pharmacy/dispense" element={<PharmacistPortal />} />
-        <Route path="/pharmacy/inventory" element={activeRole === 'DOCTOR' ? <DoctorPortal /> : <PharmacistPortal />} />
-        <Route path="/pharmacy/alerts" element={<PharmacistPortal />} />
-        <Route path="/pharmacy/receipts" element={<PharmacistPortal />} />
-        <Route path="/pharmacy/druginfo" element={<PharmacistPortal />} />
-        <Route path="/pharmacy/*" element={<PharmacistPortal />} />
+        <Route path="/pharmacy/dispense" element={<RequireRole prefix="/pharmacy" fallback={home}><PharmacistPortal /></RequireRole>} />
+        <Route path="/pharmacy/inventory" element={<RequireRole prefix="/pharmacy" fallback={home}>{activeRole === 'DOCTOR' ? <DoctorPortal /> : <PharmacistPortal />}</RequireRole>} />
+        <Route path="/pharmacy/alerts" element={<RequireRole prefix="/pharmacy" fallback={home}><PharmacistPortal /></RequireRole>} />
+        <Route path="/pharmacy/receipts" element={<RequireRole prefix="/pharmacy" fallback={home}><PharmacistPortal /></RequireRole>} />
+        <Route path="/pharmacy/druginfo" element={<RequireRole prefix="/pharmacy" fallback={home}><PharmacistPortal /></RequireRole>} />
+        <Route path="/pharmacy/*" element={<RequireRole prefix="/pharmacy" fallback={home}><PharmacistPortal /></RequireRole>} />
 
         {/* Role 06: District Health Officer Portal */}
-        <Route path="/district" element={<DistrictHealthPortal />} />
-        <Route path="/district/*" element={<DistrictHealthPortal />} />
+        <Route path="/district" element={<RequireRole prefix="/district" fallback={home}><DistrictHealthPortal /></RequireRole>} />
+        <Route path="/district/*" element={<RequireRole prefix="/district" fallback={home}><DistrictHealthPortal /></RequireRole>} />
 
         {/* Role 07 & 10: Supply Chain Portals (District & State) */}
-        <Route path="/supply/requests" element={<DistrictSupplyPortal />} />
-        <Route path="/supply/transfers" element={<DistrictSupplyPortal />} />
-        <Route path="/supply/warehouse" element={activeRole === 'STATE_SUPPLY_MANAGER' ? <StateSupplyPortal /> : <DistrictSupplyPortal />} />
-        <Route path="/supply/impacts" element={<DistrictSupplyPortal />} />
-        <Route path="/supply/escalated" element={<StateSupplyPortal />} />
-        <Route path="/supply/monitoring" element={<StateSupplyPortal />} />
-        <Route path="/supply/shortages" element={<StateSupplyPortal />} />
-        <Route path="/supply/*" element={activeRole === 'STATE_SUPPLY_MANAGER' ? <StateSupplyPortal /> : <DistrictSupplyPortal />} />
+        <Route path="/supply/requests" element={<RequireRole prefix="/supply" fallback={home}><DistrictSupplyPortal /></RequireRole>} />
+        <Route path="/supply/transfers" element={<RequireRole prefix="/supply" fallback={home}><DistrictSupplyPortal /></RequireRole>} />
+        <Route path="/supply/warehouse" element={<RequireRole prefix="/supply" fallback={home}>{activeRole === 'STATE_SUPPLY_MANAGER' ? <StateSupplyPortal /> : <DistrictSupplyPortal />}</RequireRole>} />
+        <Route path="/supply/impacts" element={<RequireRole prefix="/supply" fallback={home}><DistrictSupplyPortal /></RequireRole>} />
+        <Route path="/supply/escalated" element={<RequireRole prefix="/supply" fallback={home}><StateSupplyPortal /></RequireRole>} />
+        <Route path="/supply/monitoring" element={<RequireRole prefix="/supply" fallback={home}><StateSupplyPortal /></RequireRole>} />
+        <Route path="/supply/shortages" element={<RequireRole prefix="/supply" fallback={home}><StateSupplyPortal /></RequireRole>} />
+        <Route path="/supply/*" element={<RequireRole prefix="/supply" fallback={home}>{activeRole === 'STATE_SUPPLY_MANAGER' ? <StateSupplyPortal /> : <DistrictSupplyPortal />}</RequireRole>} />
 
         {/* Role 08: District Emergency Coordinator Portal */}
-        <Route path="/emergency" element={<DistrictEmergencyPortal />} />
-        <Route path="/emergency/*" element={<DistrictEmergencyPortal />} />
+        <Route path="/emergency" element={<RequireRole prefix="/emergency" fallback={home}><DistrictEmergencyPortal /></RequireRole>} />
+        <Route path="/emergency/*" element={<RequireRole prefix="/emergency" fallback={home}><DistrictEmergencyPortal /></RequireRole>} />
 
         {/* Role 09: State Health Administrator Portal */}
-        <Route path="/state" element={<StateHealthPortal />} />
-        <Route path="/state/*" element={<StateHealthPortal />} />
+        <Route path="/state" element={<RequireRole prefix="/state" fallback={home}><StateHealthPortal /></RequireRole>} />
+        <Route path="/state/*" element={<RequireRole prefix="/state" fallback={home}><StateHealthPortal /></RequireRole>} />
 
         {/* Cross-Role Governance Routes (District, National, State) */}
         <Route
           path="/governance/*"
           element={
-            activeRole === 'DISTRICT_HEALTH_OFFICER' ? (
-              <DistrictHealthPortal />
-            ) : activeRole === 'NATIONAL_HEALTH_AUTHORITY' ? (
-              <NationalHealthPortal />
-            ) : (
-              <StateHealthPortal />
-            )
+            <RequireRole prefix="/governance" fallback={home}>
+              {activeRole === 'DISTRICT_HEALTH_OFFICER' ? (
+                <DistrictHealthPortal />
+              ) : activeRole === 'NATIONAL_HEALTH_AUTHORITY' ? (
+                <NationalHealthPortal />
+              ) : (
+                <StateHealthPortal />
+              )}
+            </RequireRole>
           }
         />
 
         {/* Role 11: State Public Health Analyst Portal */}
-        <Route path="/analytics" element={<PublicHealthAnalystPortal />} />
-        <Route path="/analytics/*" element={<PublicHealthAnalystPortal />} />
+        <Route path="/analytics" element={<RequireRole prefix="/analytics" fallback={home}><PublicHealthAnalystPortal /></RequireRole>} />
+        <Route path="/analytics/*" element={<RequireRole prefix="/analytics" fallback={home}><PublicHealthAnalystPortal /></RequireRole>} />
 
         {/* Role 12: National Health Authority Portal */}
-        <Route path="/national" element={<NationalHealthPortal />} />
-        <Route path="/national/*" element={<NationalHealthPortal />} />
+        <Route path="/national" element={<RequireRole prefix="/national" fallback={home}><NationalHealthPortal /></RequireRole>} />
+        <Route path="/national/*" element={<RequireRole prefix="/national" fallback={home}><NationalHealthPortal /></RequireRole>} />
 
         {/* Role 13: Super / Platform Administrator Portal */}
-        <Route path="/platform" element={<PlatformAdminPortal />} />
-        <Route path="/platform/*" element={<PlatformAdminPortal />} />
+        <Route path="/platform" element={<RequireRole prefix="/platform" fallback={home}><PlatformAdminPortal /></RequireRole>} />
+        <Route path="/platform/*" element={<RequireRole prefix="/platform" fallback={home}><PlatformAdminPortal /></RequireRole>} />
 
         {/* Cross-role screens: beds, supply intelligence, Google tools (access is enforced by the backend) */}
-        <Route path="/capacity" element={<CapacityDashboard />} />
-        <Route path="/capacity/beds" element={<FacilityBedsPanel />} />
-        <Route path="/intelligence/warnings" element={<StockoutWarnings />} />
-        <Route path="/intelligence/redistribution" element={<RedistributionPlanner />} />
-        <Route path="/intelligence/federation" element={<FederatedModelPanel />} />
-        <Route path="/facilities/nearest" element={<NearestFacilities />} />
-        <Route path="/admin/google" element={<GoogleServicesPanel />} />
+        <Route path="/capacity" element={<RequireRole prefix="/capacity" fallback={home}><CapacityDashboard /></RequireRole>} />
+        <Route path="/capacity/beds" element={<RequireRole prefix="/capacity" fallback={home}><FacilityBedsPanel /></RequireRole>} />
+        <Route path="/intelligence/warnings" element={<RequireRole prefix="/intelligence" fallback={home}><StockoutWarnings /></RequireRole>} />
+        <Route path="/intelligence/redistribution" element={<RequireRole prefix="/intelligence" fallback={home}><RedistributionPlanner /></RequireRole>} />
+        <Route path="/intelligence/federation" element={<RequireRole prefix="/intelligence" fallback={home}><FederatedModelPanel /></RequireRole>} />
+        <Route path="/facilities/nearest" element={<RequireRole prefix="/facilities/nearest" fallback={home}><NearestFacilities /></RequireRole>} />
+        <Route path="/admin/google" element={<RequireRole prefix="/admin/google" fallback={home}><GoogleServicesPanel /></RequireRole>} />
 
         {/* Default route redirects to active role's home view */}
         <Route path="/" element={<Navigate to={getDefaultPathForRole()} replace />} />

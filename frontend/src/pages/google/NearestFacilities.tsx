@@ -1,9 +1,14 @@
 import React, { useState } from 'react';
-import { MapPin, Navigation, Search, ExternalLink, Info, Loader2 } from 'lucide-react';
+import { MapPin, Navigation, Search, ExternalLink, Info, Loader2, Hospital } from 'lucide-react';
 import { api } from '../../services/api';
 import { StateView } from '../../components/common/StateView';
-import { Badge } from '../../components/common/Badge';
 import { useLanguage } from '../../context/LanguageContext';
+import { PageHeader } from '../../components/ui/page-header';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/card';
+import { Badge } from '../../components/ui/badge';
+import { Button } from '../../components/ui/button';
+import { Input } from '../../components/ui/input';
+import { Alert, AlertTitle, AlertDescription } from '../../components/ui/alert';
 
 interface NearestFacility {
   id: string;
@@ -32,14 +37,6 @@ type Failure = { status: number; message: string };
 
 const mapsLink = (f: { latitude: number; longitude: number }) =>
   `https://www.google.com/maps/dir/?api=1&destination=${f.latitude},${f.longitude}`;
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '0.6rem',
-  borderRadius: '8px',
-  border: '1px solid var(--border-color)',
-  fontSize: '0.9rem',
-};
 
 export default function NearestFacilities() {
   const { t } = useLanguage();
@@ -112,154 +109,165 @@ export default function NearestFacilities() {
       : failure?.message;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', maxWidth: '820px', margin: '0 auto', width: '100%' }}>
-      <header>
-        <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.4rem' }}>
-          <MapPin size={22} aria-hidden="true" /> {t('nearest.title', 'Find nearest health facility')}
-        </h2>
-        <p style={{ margin: '0.35rem 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-          {t('nearest.subtitle', 'Share your location or enter an address to see the closest facilities.')}
-        </p>
-      </header>
+    <div className="space-y-6 max-w-4xl mx-auto">
+      {/* Context-First Standard Page Header */}
+      <PageHeader
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Patient Services', href: '/patient' },
+          { label: 'Facility Locator' }
+        ]}
+        scopeBadge={{ label: 'Geo-Spatial Care Grid', variant: 'teal' }}
+        roleBadge={{ label: 'Citizen Navigation', variant: 'outline' }}
+        title={t('nearest.title', 'Find Nearest Health Facility')}
+        description={t('nearest.subtitle', 'Share your location or enter an address or pincode to locate the closest Primary Health Centers and Community Health Centers.')}
+      />
 
-      <section className="glass-card" style={{ padding: '1.25rem', borderRadius: '14px', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        <div>
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={useMyLocation}
-            disabled={locating || loading}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
-          >
-            {locating ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : <Navigation size={16} aria-hidden="true" />}
-            {locating ? t('nearest.locating', 'Getting your location...') : t('nearest.use_location', 'Use my location')}
-          </button>
-          <p style={{ margin: '0.5rem 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            {t('nearest.geo.why', 'Your browser will ask permission. Your location is only used once, to rank facilities by distance, and is not stored.')}
-          </p>
-        </div>
-
-        <form onSubmit={onSubmit} style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'flex-end' }}>
-          <div style={{ flex: '1 1 220px' }}>
-            <label htmlFor="nearest-address" style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-              {t('nearest.address.label', 'Or type an address or pincode')}
-            </label>
-            <input
-              id="nearest-address"
-              type="text"
-              value={address}
-              maxLength={300}
-              onChange={(e) => setAddress(e.target.value)}
-              style={inputStyle}
-              placeholder={t('nearest.address.placeholder', 'e.g. village, town or pincode')}
-            />
+      {/* Search & Location Card */}
+      <Card className="border-border shadow-xs">
+        <CardContent className="p-5 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-border">
+            <div>
+              <h4 className="text-sm font-bold text-foreground">GPS Location Detection</h4>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {t('nearest.geo.why', 'Your location is evaluated once to rank nearby facilities by driving time, and is not stored.')}
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="teal"
+              size="sm"
+              onClick={useMyLocation}
+              disabled={locating || loading}
+              className="gap-2 text-xs font-semibold shrink-0"
+            >
+              {locating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Navigation className="w-3.5 h-3.5" />}
+              {locating ? t('nearest.locating', 'Detecting GPS...') : t('nearest.use_location', 'Use My Current Location')}
+            </Button>
           </div>
-          <button
-            type="submit"
-            className="btn-secondary"
-            disabled={loading || locating}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.6rem 1rem' }}
-          >
-            <Search size={16} aria-hidden="true" /> {t('nearest.search', 'Search')}
-          </button>
-        </form>
 
-        {geoMessage && (
-          <p role="alert" style={{ margin: 0, color: '#b45309', fontSize: '0.85rem' }}>
-            {geoMessage}
-          </p>
-        )}
-      </section>
+          <form onSubmit={onSubmit} className="flex flex-col sm:flex-row gap-2 pt-1">
+            <div className="flex-1 space-y-1">
+              <label htmlFor="nearest-address" className="text-xs font-semibold text-foreground">
+                {t('nearest.address.label', 'Or type village, town, or 6-digit postal pincode')}
+              </label>
+              <Input
+                id="nearest-address"
+                type="text"
+                value={address}
+                maxLength={300}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder={t('nearest.address.placeholder', 'e.g. Chengalpattu, 603001')}
+                className="text-xs h-9"
+              />
+            </div>
+            <Button
+              type="submit"
+              variant="secondary"
+              size="sm"
+              disabled={loading || locating}
+              className="gap-1.5 text-xs h-9 sm:self-end"
+            >
+              <Search className="w-3.5 h-3.5" />
+              {t('nearest.search', 'Search Facilities')}
+            </Button>
+          </form>
 
+          {geoMessage && (
+            <Alert variant="warning" className="text-xs py-2">
+              <AlertDescription>{geoMessage}</AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Results View */}
       <div aria-live="polite">
-        {loading && <StateView state="loading" message={t('nearest.loading', 'Finding nearby facilities...')} />}
+        {loading && <StateView type="loading" message={t('nearest.loading', 'Routing to nearby healthcare facilities...')} />}
 
         {!loading && failure && (
           <StateView
-            state={failure.status === 0 ? 'offline' : 'error'}
-            title={failureTitle}
-            message={failureMessage}
+            type={failure.status === 0 ? 'offline' : 'error'}
+            message={failureMessage || failureTitle || 'Could not find nearby facilities.'}
             onRetry={lastBody ? () => void search(lastBody) : undefined}
           />
         )}
 
         {!loading && !failure && result && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            <div
-              role="note"
-              style={{
-                display: 'flex',
-                gap: '0.5rem',
-                padding: '0.75rem 1rem',
-                borderRadius: '10px',
-                background: result.method === 'google_routes' ? 'rgba(16,185,129,0.1)' : 'rgba(245,158,11,0.12)',
-                fontSize: '0.85rem',
-              }}
-            >
-              <Info size={16} style={{ flexShrink: 0, marginTop: '0.15rem' }} aria-hidden="true" />
-              <div>
-                <strong>
+          <div className="space-y-4">
+            {/* Routing Mode Context Banner */}
+            <Alert className="border-teal-200 bg-teal-50/70 text-teal-950">
+              <Info className="w-4 h-4 text-teal-700" />
+              <div className="flex-1">
+                <AlertTitle className="text-xs font-bold text-teal-950">
                   {result.method === 'google_routes'
-                    ? t('nearest.method.routes', 'Distance and driving time')
-                    : t('nearest.method.straight', 'Straight-line distance only')}
-                </strong>
-                <div>{result.method_note}</div>
-                {result.origin_label && (
-                  <div style={{ color: 'var(--text-muted)' }}>
-                    {t('nearest.from', 'Searching from')}: {result.origin_label}
-                  </div>
-                )}
+                    ? t('nearest.method.routes', 'Calculated by Road Driving Distance & Traffic')
+                    : t('nearest.method.straight', 'Calculated by Straight-Line Distance')}
+                </AlertTitle>
+                <AlertDescription className="text-xs text-teal-900 mt-0.5">
+                  {result.method_note}
+                  {result.origin_label && (
+                    <span className="font-semibold block mt-0.5">
+                      {t('nearest.from', 'Searching from')}: {result.origin_label}
+                    </span>
+                  )}
+                </AlertDescription>
               </div>
-            </div>
+            </Alert>
 
             {result.facilities.length === 0 ? (
               <StateView
-                state="empty"
-                title={t('nearest.empty.title', 'No facilities found')}
-                message={t('nearest.empty.msg', 'No facilities with a known location were found.')}
+                type="empty"
+                message={t('nearest.empty.msg', 'No health facilities with registered GPS coordinates were found in this area.')}
               />
             ) : (
-              <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div className="space-y-3">
                 {result.facilities.map((f, i) => (
-                  <li
-                    key={f.id}
-                    className="glass-card"
-                    style={{ padding: '1rem', borderRadius: '12px', display: 'flex', flexWrap: 'wrap', gap: '0.75rem', justifyContent: 'space-between', alignItems: 'center' }}
-                  >
-                    <div style={{ flex: '1 1 240px', minWidth: 0 }}>
-                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                        <strong>
-                          {i + 1}. {f.name}
-                        </strong>
-                        <Badge status={f.facility_type} size="sm" />
+                  <Card key={f.id} className="border-border shadow-xs hover:border-teal-300 transition-colors">
+                    <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="w-5 h-5 rounded-full bg-teal-100 text-teal-800 text-[11px] font-bold flex items-center justify-center">
+                            {i + 1}
+                          </span>
+                          <span className="font-bold text-foreground text-sm">{f.name}</span>
+                          <Badge variant="outline" className="text-[10px] font-mono">
+                            {f.facility_type}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {f.district}, {f.state}
+                        </p>
+                        <div className="text-xs font-medium text-teal-800 pt-0.5">
+                          {f.straight_line_km.toFixed(1)} km {t('nearest.straight', 'aerial distance')}
+                          {f.driving_distance_km != null && f.driving_minutes != null && (
+                            <span className="text-foreground font-bold ml-1">
+                              &middot; {f.driving_distance_km.toFixed(1)} km {t('nearest.by_road', 'by road')} (~{Math.round(f.driving_minutes)} {t('nearest.min', 'min drive')})
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                        {f.district}, {f.state}
-                      </div>
-                      <div style={{ fontSize: '0.9rem', marginTop: '0.4rem' }}>
-                        {f.straight_line_km.toFixed(1)} km {t('nearest.straight', 'straight-line')}
-                        {f.driving_distance_km != null && f.driving_minutes != null && (
-                          <>
-                            {' '}
-                            &middot; {f.driving_distance_km.toFixed(1)} km {t('nearest.by_road', 'by road')}, ~{Math.round(f.driving_minutes)}{' '}
-                            {t('nearest.min', 'min drive')}
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <a
-                      href={mapsLink(f)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn-secondary"
-                      aria-label={`${t('nearest.open_maps', 'Open in Google Maps')}: ${f.name}`}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', textDecoration: 'none', padding: '0.5rem 0.9rem' }}
-                    >
-                      <ExternalLink size={14} aria-hidden="true" /> {t('nearest.open_maps', 'Open in Google Maps')}
-                    </a>
-                  </li>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        asChild
+                        className="gap-1.5 text-xs border-teal-200 text-teal-800 hover:bg-teal-50 shrink-0 self-start sm:self-auto"
+                      >
+                        <a
+                          href={mapsLink(f)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label={`${t('nearest.open_maps', 'Open in Google Maps')}: ${f.name}`}
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          {t('nearest.open_maps', 'Open in Google Maps')}
+                        </a>
+                      </Button>
+                    </CardContent>
+                  </Card>
                 ))}
-              </ol>
+              </div>
             )}
           </div>
         )}

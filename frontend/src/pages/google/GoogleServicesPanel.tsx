@@ -1,9 +1,15 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { CheckCircle, XCircle, Database, RefreshCw } from 'lucide-react';
+import { CheckCircle, XCircle, Database, RefreshCw, Cloud, Cpu, MapPin, Radio, ShieldCheck } from 'lucide-react';
 import { api } from '../../services/api';
 import { StateView } from '../../components/common/StateView';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
+import { PageHeader } from '../../components/ui/page-header';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/card';
+import { Badge } from '../../components/ui/badge';
+import { Button } from '../../components/ui/button';
+import { Alert, AlertTitle, AlertDescription } from '../../components/ui/alert';
+import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '../../components/ui/table';
 
 interface GoogleStatus {
   gemini: boolean;
@@ -40,17 +46,17 @@ interface Summary {
 
 type Fail = { status: number; message: string };
 
-const cell = (v: number | string | null | undefined) => (v === null || v === undefined ? '-' : String(v));
+const cell = (v: number | string | null | undefined) => (v === null || v === undefined ? '—' : String(v));
 
 const COLS: [keyof SummaryRow, string][] = [
   ['state', 'State'],
   ['facilities', 'Facilities'],
   ['appointments', 'Appointments'],
   ['stockouts', 'Stockouts'],
-  ['staff_present_days', 'Staff present days'],
-  ['staff_assigned_days', 'Staff assigned days'],
-  ['beds_total_days', 'Bed days total'],
-  ['beds_occupied_days', 'Bed days occupied'],
+  ['staff_present_days', 'Staff Present Days'],
+  ['staff_assigned_days', 'Staff Assigned Days'],
+  ['beds_total_days', 'Bed Days Total'],
+  ['beds_occupied_days', 'Bed Days Occupied'],
 ];
 
 export default function GoogleServicesPanel() {
@@ -111,8 +117,7 @@ export default function GoogleServicesPanel() {
   if (!allowed) {
     return (
       <StateView
-        state="403"
-        title={t('gsp.forbidden.title', 'Access Restricted')}
+        type="403"
         message={t('gsp.forbidden.msg', 'Google Cloud services are available to governance and administrator users only.')}
       />
     );
@@ -125,147 +130,217 @@ export default function GoogleServicesPanel() {
         ? t('gsp.err.403', 'Your account does not have permission for this action.')
         : f.message;
 
-  const items: [keyof GoogleStatus, string][] = [
-    ['gemini', t('gsp.svc.gemini', 'Gemini AI assistant')],
-    ['voice_translate', t('gsp.svc.voice', 'Voice and translation')],
-    ['maps', t('gsp.svc.maps', 'Google Maps (geocoding, driving time)')],
-    ['service_account', t('gsp.svc.sa', 'Service account credentials')],
-    ['bigquery', t('gsp.svc.bq', 'BigQuery analytics')],
-    ['vertex_forecast', t('gsp.svc.vertex', 'Vertex AI forecasting')],
+  const items: [keyof GoogleStatus, string, string][] = [
+    ['gemini', t('gsp.svc.gemini', 'Gemini AI Assistant'), 'Clinical reasoning & trilingual assistance'],
+    ['voice_translate', t('gsp.svc.voice', 'Speech-to-Text & Translation'), 'Tamil, Hindi & English speech recognition'],
+    ['maps', t('gsp.svc.maps', 'Google Maps & Routes'), 'Facility geocoding & road transit calculations'],
+    ['service_account', t('gsp.svc.sa', 'Service Account IAM'), 'GCP authentication and credential keys'],
+    ['bigquery', t('gsp.svc.bq', 'BigQuery Analytics'), 'Serverless epidemiological telemetry data warehouse'],
+    ['vertex_forecast', t('gsp.svc.vertex', 'Vertex AI Forecasting'), 'Machine learning surge prediction models'],
   ];
 
-  const th: React.CSSProperties = { textAlign: 'left', padding: '0.5rem', borderBottom: '1px solid var(--border-color)', fontSize: '0.8rem', whiteSpace: 'nowrap' };
-  const td: React.CSSProperties = { padding: '0.5rem', borderBottom: '1px solid var(--border-color)', fontSize: '0.85rem' };
-  const card: React.CSSProperties = { padding: '1.25rem', borderRadius: '14px' };
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', maxWidth: '1000px', margin: '0 auto', width: '100%' }}>
-      <h2 style={{ margin: 0, fontSize: '1.4rem' }}>{t('gsp.title', 'Google Cloud services')}</h2>
+    <div className="space-y-6 max-w-5xl mx-auto">
+      {/* Context-First Standard Page Header */}
+      <PageHeader
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Cloud Infrastructure', href: '/governance' },
+          { label: 'Google Cloud Services' }
+        ]}
+        scopeBadge={{ label: 'Google Cloud Platform (GCP)', variant: 'sky' }}
+        roleBadge={{ label: 'Cloud Governance Tier', variant: 'outline' }}
+        title={t('gsp.title', 'Google Cloud Services & BigQuery Analytics')}
+        description="Unified health telemetry pipeline connecting primary health centers with BigQuery data warehousing, Vertex AI forecasting, and Maps routing."
+        actions={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => { void loadStatus(); void loadSummary(); }}
+            disabled={statusLoading || summaryLoading}
+            className="gap-1.5 text-xs"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${statusLoading || summaryLoading ? 'animate-spin' : ''}`} />
+            {t('gsp.refresh', 'Refresh All Services')}
+          </Button>
+        }
+      />
 
-      <section className="glass-card" aria-labelledby="gsp-status" style={card}>
-        <h3 id="gsp-status" style={{ marginTop: 0 }}>
-          {t('gsp.status', 'Service status')}
-        </h3>
-        {statusLoading ? (
-          <StateView state="loading" />
-        ) : statusFail ? (
-          <StateView state="error" message={failMsg(statusFail)} onRetry={() => void loadStatus()} />
-        ) : (
-          status && (
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.5rem' }}>
-              {items.map(([k, label]) => (
-                <li key={k} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  {status[k] ? <CheckCircle size={18} color="#059669" aria-hidden="true" /> : <XCircle size={18} color="#dc2626" aria-hidden="true" />}
-                  <span>
-                    {label}: <strong>{status[k] ? t('gsp.configured', 'Configured') : t('gsp.not_configured', 'Not configured')}</strong>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )
-        )}
-      </section>
+      {/* Service Status Matrix */}
+      <Card className="border-border shadow-xs">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base text-foreground font-bold flex items-center gap-2">
+            <Cloud className="w-4 h-4 text-sky-600" />
+            {t('gsp.status', 'Connected Service Status')}
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Operational status of Google Cloud integration modules.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {statusLoading ? (
+            <StateView type="loading" message="Loading Google services..." />
+          ) : statusFail ? (
+            <StateView type="error" message={failMsg(statusFail)} onRetry={() => void loadStatus()} />
+          ) : (
+            status && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {items.map(([k, label, desc]) => {
+                  const isReady = status[k];
+                  return (
+                    <div key={k} className="p-3 bg-muted/40 rounded-lg border border-border flex items-start gap-3">
+                      {isReady ? (
+                        <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                      ) : (
+                        <XCircle className="w-5 h-5 text-slate-400 shrink-0 mt-0.5" />
+                      )}
+                      <div className="min-w-0">
+                        <div className="font-semibold text-foreground text-xs">{label}</div>
+                        <div className="text-[11px] text-muted-foreground mt-0.5">{desc}</div>
+                        <Badge variant={isReady ? 'success' : 'outline'} className="text-[10px] mt-2">
+                          {isReady ? t('gsp.configured', 'Connected') : t('gsp.not_configured', 'Not Configured')}
+                        </Badge>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          )}
+        </CardContent>
+      </Card>
 
-      <section className="glass-card" aria-labelledby="gsp-export" style={card}>
-        <h3 id="gsp-export" style={{ marginTop: 0 }}>
-          {t('gsp.export', 'BigQuery export')}
-        </h3>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-          {t('gsp.export.desc', "Exports today's facility aggregates (counts only, no patient data) for your jurisdiction.")}
-        </p>
-        <button type="button" className="btn-primary" onClick={runExport} disabled={exporting} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Database size={16} aria-hidden="true" />
-          {exporting ? t('gsp.exporting', 'Exporting...') : t('gsp.export.run', "Export today's data")}
-        </button>
-        <div aria-live="polite" style={{ marginTop: '0.75rem' }}>
-          {exportFail && (
-            <div role="alert" style={{ color: '#b91c1c', fontSize: '0.9rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-              <span>{failMsg(exportFail)}</span>
-              {exportFail.status !== 403 && exportFail.status !== 503 && (
-                <button type="button" className="btn-secondary" onClick={runExport}>
-                  {t('state.retry', 'Retry')}
-                </button>
+      {/* BigQuery Export Card */}
+      <Card className="border-border shadow-xs">
+        <CardHeader className="pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <CardTitle className="text-base text-foreground font-bold flex items-center gap-2">
+                <Database className="w-4 h-4 text-teal-600" />
+                {t('gsp.export', 'BigQuery Health Telemetry Export')}
+              </CardTitle>
+              <CardDescription className="text-xs">
+                {t('gsp.export.desc', "Exports today's facility aggregates (counts only, zero patient identifiers) for your jurisdiction.")}
+              </CardDescription>
+            </div>
+            <Button
+              type="button"
+              variant="teal"
+              size="sm"
+              onClick={runExport}
+              disabled={exporting}
+              className="gap-2 text-xs font-semibold shrink-0"
+            >
+              <Database className="w-3.5 h-3.5" />
+              {exporting ? t('gsp.exporting', 'Exporting...') : t('gsp.export.run', "Export Today's Telemetry")}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div aria-live="polite">
+            {exportFail && (
+              <Alert variant="destructive" className="text-xs">
+                <AlertDescription className="flex items-center justify-between">
+                  <span>{failMsg(exportFail)}</span>
+                  {exportFail.status !== 403 && exportFail.status !== 503 && (
+                    <Button variant="outline" size="sm" onClick={runExport} className="h-6 text-[10px]">
+                      {t('state.retry', 'Retry')}
+                    </Button>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {exportResult && (
+              <Alert variant="default" className="border-emerald-200 bg-emerald-50 text-emerald-900 text-xs">
+                <CheckCircle className="w-4 h-4 text-emerald-600" />
+                <div className="flex-1">
+                  <AlertTitle className="font-semibold">{t('gsp.export.done', 'Export Complete')}</AlertTitle>
+                  <AlertDescription className="text-[11px] mt-0.5 text-emerald-800">
+                    {exportResult.rows_exported} {t('gsp.rows', 'rows exported')} &middot; {t('gsp.date', 'Date')}: {exportResult.aggregate_date} &middot; {t('gsp.scope', 'Scope')}: {exportResult.scope}
+                    <div className="mt-0.5">
+                      {exportResult.beds_included ? t('gsp.beds.yes', 'Bed occupancy figures included.') : t('gsp.beds.no', 'Bed occupancy not included.')}
+                    </div>
+                  </AlertDescription>
+                </div>
+              </Alert>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* National Summary Table */}
+      <Card className="border-border shadow-xs">
+        <CardHeader className="pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <CardTitle className="text-base text-foreground font-bold">
+                {t('gsp.summary', 'National Telemetry Roll-Up (Last 30 Days)')}
+              </CardTitle>
+              {summary && (
+                <CardDescription className="text-xs">
+                  {summary.date_from} to {summary.date_to} &middot; {summary.scope} &middot; Source: {summary.source}
+                </CardDescription>
               )}
             </div>
-          )}
-          {exportResult && (
-            <div style={{ fontSize: '0.9rem' }}>
-              <strong>{t('gsp.export.done', 'Export complete.')}</strong> {exportResult.rows_exported} {t('gsp.rows', 'rows exported')} &middot;{' '}
-              {t('gsp.date', 'date')} {exportResult.aggregate_date} &middot; {t('gsp.scope', 'scope')}: {exportResult.scope}
-              <div style={{ color: 'var(--text-muted)' }}>
-                {exportResult.beds_included ? t('gsp.beds.yes', 'Bed occupancy included.') : t('gsp.beds.no', 'Bed occupancy not included.')}
-              </div>
-            </div>
-          )}
-        </div>
-      </section>
-
-      <section className="glass-card" aria-labelledby="gsp-summary" style={card}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-          <h3 id="gsp-summary" style={{ margin: 0 }}>
-            {t('gsp.summary', 'National summary (last 30 days)')}
-          </h3>
-          <button type="button" className="btn-secondary" onClick={() => void loadSummary()} disabled={summaryLoading} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
-            <RefreshCw size={14} aria-hidden="true" /> {t('gsp.refresh', 'Refresh')}
-          </button>
-        </div>
-        <div style={{ marginTop: '0.75rem' }}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void loadSummary()}
+              disabled={summaryLoading}
+              className="gap-1.5 text-xs h-8"
+            >
+              <RefreshCw className={`w-3 h-3 ${summaryLoading ? 'animate-spin' : ''}`} />
+              {t('gsp.refresh', 'Refresh')}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
           {summaryLoading ? (
-            <StateView state="loading" />
+            <div className="p-8"><StateView type="loading" message="Loading national aggregates..." /></div>
           ) : summaryFail ? (
-            summaryFail.status === 403 ? (
-              <StateView state="403" message={failMsg(summaryFail)} />
-            ) : (
+            <div className="p-4">
               <StateView
-                state="error"
-                title={summaryFail.status === 503 ? t('gsp.err.unconfigured', 'Not configured') : undefined}
+                type={summaryFail.status === 403 ? '403' : 'error'}
                 message={failMsg(summaryFail)}
                 onRetry={summaryFail.status === 503 ? undefined : () => void loadSummary()}
               />
-            )
-          ) : (
-            summary &&
-            (summary.rows.length === 0 ? (
-              <StateView
-                state="empty"
-                title={t('gsp.summary.empty', 'No data yet')}
-                message={t('gsp.summary.empty.msg', 'No aggregates exist for this period. Run an export first.')}
-              />
-            ) : (
-              <>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                  {summary.date_from} to {summary.date_to} &middot; {summary.scope}
-                </p>
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <caption style={{ position: 'absolute', left: '-9999px' }}>{t('gsp.summary.caption', 'National summary by state')}</caption>
-                    <thead>
-                      <tr>
-                        {COLS.map(([k, label]) => (
-                          <th key={k} scope="col" style={th}>
-                            {t(`gsp.col.${k}`, label)}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {summary.rows.map((r, i) => (
-                        <tr key={`${r.state ?? 'all'}-${i}`}>
-                          {COLS.map(([k]) => (
-                            <td key={k} style={td}>
-                              {cell(r[k])}
-                            </td>
-                          ))}
-                        </tr>
+            </div>
+          ) : summary && summary.rows.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground text-sm">
+              {t('gsp.summary.empty.msg', 'No aggregates exist for this period. Run an export first.')}
+            </div>
+          ) : summary ? (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    {COLS.map(([k, label]) => (
+                      <TableHead key={k}>{t(`gsp.col.${k}`, label)}</TableHead>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {summary.rows.map((r, i) => (
+                    <TableRow key={`${r.state ?? 'all'}-${i}`}>
+                      {COLS.map(([k]) => (
+                        <TableCell key={k} className="text-xs">
+                          {k === 'state' ? (
+                            <span className="font-bold text-foreground">{r[k] || 'All States'}</span>
+                          ) : (
+                            <span className="font-mono text-muted-foreground">{cell(r[k])}</span>
+                          )}
+                        </TableCell>
                       ))}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            ))
-          )}
-        </div>
-      </section>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -4,37 +4,38 @@ import {
   Home, Calendar, FileText, MessageSquare, Users, Activity,
   User, Pill, Box, Truck, Building2, ClipboardList,
   AlertTriangle, Siren, Map, Target, CheckSquare, BarChart3,
-  Globe, ListFilter, Bell, Server, Shield, FlaskConical, Layers
+  Globe, ListFilter, Bell, Server, Shield, FlaskConical, Layers,
+  Compass, HeartPulse
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { formatRoleName } from '../../utils/formatters';
 
 const ICON_MAP: Record<string, React.ReactNode> = {
-  home: <Home size={18} />,
-  calendar: <Calendar size={18} />,
-  file: <FileText size={18} />,
-  chat: <MessageSquare size={18} />,
-  users: <Users size={18} />,
-  activity: <Activity size={18} />,
-  user: <User size={18} />,
-  flask: <FlaskConical size={18} />,
-  pill: <Pill size={18} />,
-  box: <Box size={18} />,
-  truck: <Truck size={18} />,
-  building: <Building2 size={18} />,
-  clipboard: <ClipboardList size={18} />,
-  alert: <AlertTriangle size={18} />,
-  siren: <Siren size={18} />,
-  map: <Map size={18} />,
-  target: <Target size={18} />,
-  check: <CheckSquare size={18} />,
-  chart: <BarChart3 size={18} />,
-  globe: <Globe size={18} />,
-  list: <ListFilter size={18} />,
-  bell: <Bell size={18} />,
-  server: <Server size={18} />,
-  shield: <Shield size={18} />,
+  home: <Home className="w-4 h-4" />,
+  calendar: <Calendar className="w-4 h-4" />,
+  file: <FileText className="w-4 h-4" />,
+  chat: <MessageSquare className="w-4 h-4" />,
+  users: <Users className="w-4 h-4" />,
+  activity: <Activity className="w-4 h-4" />,
+  user: <User className="w-4 h-4" />,
+  flask: <FlaskConical className="w-4 h-4" />,
+  pill: <Pill className="w-4 h-4" />,
+  box: <Box className="w-4 h-4" />,
+  truck: <Truck className="w-4 h-4" />,
+  building: <Building2 className="w-4 h-4" />,
+  clipboard: <ClipboardList className="w-4 h-4" />,
+  alert: <AlertTriangle className="w-4 h-4" />,
+  siren: <Siren className="w-4 h-4" />,
+  map: <Map className="w-4 h-4" />,
+  target: <Target className="w-4 h-4" />,
+  check: <CheckSquare className="w-4 h-4" />,
+  chart: <BarChart3 className="w-4 h-4" />,
+  globe: <Globe className="w-4 h-4" />,
+  list: <ListFilter className="w-4 h-4" />,
+  bell: <Bell className="w-4 h-4" />,
+  server: <Server className="w-4 h-4" />,
+  shield: <Shield className="w-4 h-4" />,
 };
 
 interface NavigationProps {
@@ -42,7 +43,7 @@ interface NavigationProps {
 }
 
 export const Navigation: React.FC<NavigationProps> = ({ onItemClick }) => {
-  const { navItems, activeRole } = useAuth();
+  const { navItems, activeRole, scope } = useAuth();
   const { t } = useLanguage();
 
   const formatLabel = (key: string): string => {
@@ -75,7 +76,7 @@ export const Navigation: React.FC<NavigationProps> = ({ onItemClick }) => {
     return 'nav.section.modules';
   };
 
-  // Group navItems by section key
+  // Group navItems by section
   const groupedItems: Record<string, typeof navItems> = {};
   navItems.forEach((item) => {
     const sectionKey = getSectionKey(item.key);
@@ -85,29 +86,36 @@ export const Navigation: React.FC<NavigationProps> = ({ onItemClick }) => {
 
   return (
     <nav className="flex flex-col gap-4 p-3 font-sans text-slate-800">
-      {/* Role Title Header Banner */}
-      <div className="px-3 py-2 bg-sky-50/80 border border-sky-200/80 rounded-xl">
-        <div className="text-[10px] font-bold text-sky-700 uppercase tracking-wider flex items-center gap-1.5">
-          <Layers className="w-3 h-3 text-sky-600" />
-          {t('nav.activeWorkspace')}
+      {/* Role & Scope Context Card */}
+      <div className="p-3 bg-gradient-to-br from-sky-50 to-slate-50 border border-sky-100 rounded-xl space-y-1">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-extrabold text-sky-700 uppercase tracking-wider flex items-center gap-1.5">
+            <Layers className="w-3 h-3 text-sky-600" />
+            {t('nav.activeWorkspace') || 'Active Workspace'}
+          </span>
+          {scope && (
+            <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-sky-200/80 text-sky-900">
+              {scope}
+            </span>
+          )}
         </div>
-        <div className="text-xs font-bold text-slate-900 mt-0.5 truncate">
-          {activeRole ? formatRoleName(activeRole, t) : t('nav.workspace')}
+        <div className="text-xs font-extrabold text-slate-900 truncate">
+          {activeRole ? formatRoleName(activeRole, t) : t('nav.workspace') || 'Authorized Portal'}
         </div>
       </div>
 
       {navItems.length === 0 ? (
-        <div className="px-3 py-2 text-xs text-slate-500 font-medium">
-          {t('state.loading')}
+        <div className="px-3 py-4 text-xs text-slate-400 font-medium text-center">
+          {t('state.loading') || 'Loading workspace modules...'}
         </div>
       ) : (
         Object.entries(groupedItems).map(([sectionKey, items]) => (
           <div key={sectionKey} className="space-y-1">
-            <div className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              {t(sectionKey)}
+            <div className="px-3 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+              {t(sectionKey) || sectionKey.replace('nav.section.', '').toUpperCase()}
             </div>
             {items.map((item) => {
-              const icon = ICON_MAP[item.icon] || <Activity size={18} />;
+              const icon = ICON_MAP[item.icon] || <Activity className="w-4 h-4" />;
               return (
                 <NavLink
                   key={item.path}
@@ -116,8 +124,8 @@ export const Navigation: React.FC<NavigationProps> = ({ onItemClick }) => {
                   className={({ isActive }) =>
                     `flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-150 ${
                       isActive
-                        ? 'bg-sky-600 text-white shadow-xs font-bold'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                        ? 'bg-sky-600 text-white shadow-2xs font-bold'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
                     }`
                   }
                 >

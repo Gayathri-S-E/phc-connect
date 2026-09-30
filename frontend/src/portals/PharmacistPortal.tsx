@@ -4,15 +4,29 @@ import {
   Pill, AlertTriangle, CheckCircle, Clock, 
   Send, Search, ShieldCheck, ChevronRight, 
   Package, Truck, BookOpen, AlertCircle, Plus,
-  Layers, Check, Sparkles
+  Layers, Check, Sparkles, Box, ShieldAlert,
+  Calendar, Eye, ArrowRight, ClipboardCheck
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { StateView } from '../components/common/StateView';
 import { Badge } from '../components/common/Badge';
-import { Modal } from '../components/common/Modal';
 import { DataTable } from '../components/common/DataTable';
+import { PageHeader } from '../components/ui/page-header';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Textarea } from '../components/ui/textarea';
+import {
+  Dialog,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogContent,
+  DialogFooter,
+  DialogClose,
+} from '../components/ui/dialog';
 
 export default function PharmacistPortal() {
   const { user } = useAuth();
@@ -41,6 +55,7 @@ export default function PharmacistPortal() {
     if (tab === 'transfers') navigate('/pharmacy/receipts');
     else navigate(`/pharmacy/${tab}`);
   };
+
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,14 +67,6 @@ export default function PharmacistPortal() {
   const [isDispenseModalOpen, setIsDispenseModalOpen] = useState(false);
   const [dispenseNotes, setDispenseNotes] = useState('');
   const [dispenseSuccess, setDispenseSuccess] = useState<any>(null);
-
-  // Counselling Note State
-  const [isCounsellingModalOpen, setIsCounsellingModalOpen] = useState(false);
-  const [counsellingSummary, setCounsellingSummary] = useState('');
-  const [counsellingLang, setCounsellingLang] = useState('TAMIL');
-  const [patientUnderstood, setPatientUnderstood] = useState(true);
-  const [followUpRecommended, setFollowUpRecommended] = useState(false);
-  const [followUpNotes, setFollowUpNotes] = useState('');
 
   // Stock Alerts State
   const [stockAlerts, setStockAlerts] = useState<any[]>([]);
@@ -84,10 +91,8 @@ export default function PharmacistPortal() {
   const [requestPriority, setRequestPriority] = useState('ROUTINE');
   const [requestJustification, setRequestJustification] = useState('');
 
-  // Drug Info AI State
-  const [medicationsList, setMedicationsList] = useState<any[]>([]);
+  // Drug Info State
   const [selectedMedIdForInfo, setSelectedMedIdForInfo] = useState('');
-  const [drugQueryType, setDrugQueryType] = useState('general');
   const [drugInfoResult, setDrugInfoResult] = useState<any>(null);
   const [isQueryingDrugInfo, setIsQueryingDrugInfo] = useState(false);
 
@@ -98,28 +103,23 @@ export default function PharmacistPortal() {
     setIsLoading(true);
     setError(null);
     try {
-      const [queueRes, alertsRes, invRes, transfersRes, medsRes] = await Promise.all([
-        api.get<any[]>(`/pharmacist/prescriptions/pending?facility_id=${facilityId}`).catch(() => ({ data: [] })),
-        api.get<any[]>(`/pharmacist/stock-alerts?facility_id=${facilityId}`).catch(() => ({ data: [] })),
-        api.get<any>(`/inventory?facility_id=${facilityId}&page_size=100`).catch(() => ({ data: { items: [] } })),
-        api.get<any[]>(`/transfers?facility_id=${facilityId}`).catch(() => ({ data: [] })),
-        api.get<any[]>('/medications').catch(() => ({ data: [] })),
+      const [queueRes, alertsRes, invRes, transRes] = await Promise.all([
+        api.get<any[]>('/pharmacy/queue'),
+        api.get<any[]>('/pharmacy/alerts'),
+        api.get<any[]>('/pharmacy/inventory'),
+        api.get<any[]>('/supply/transfers'),
       ]);
 
-      if (queueRes?.data) setDispenseQueue(queueRes.data);
-      if (alertsRes?.data) setStockAlerts(alertsRes.data);
-      if (invRes?.data) {
-        setInventoryItems(Array.isArray(invRes.data) ? invRes.data : invRes.data.items || []);
+      if (queueRes.data) setDispenseQueue(queueRes.data);
+      if (alertsRes.data) setStockAlerts(alertsRes.data);
+      if (invRes.data) setInventoryItems(invRes.data);
+      if (transRes.data) setTransfers(transRes.data);
+
+      if (queueRes.error) {
+        setError(queueRes.error.detail);
       }
-      if (transfersRes?.data) setTransfers(transfersRes.data);
-      if (medsRes?.data) {
-        setMedicationsList(medsRes.data);
-        if (medsRes.data.length > 0 && !selectedMedIdForInfo) {
-          setSelectedMedIdForInfo(medsRes.data[0].id);
-        }
-      }
-    } catch (err: any) {
-      setError(err?.detail || 'Failed to load pharmacy data');
+    } catch {
+      setError('Failed to fetch pharmacist dispensary records.');
     } finally {
       setIsLoading(false);
     }
@@ -127,928 +127,680 @@ export default function PharmacistPortal() {
 
   useEffect(() => {
     fetchPharmacistData();
-  }, [facilityId]);
+  }, []);
 
-  // Execute Atomic FEFO Dispensing
-  const handleDispenseFEFO = async (e: React.FormEvent) => {
+  const handleDispensePrescription = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedRx) return;
+
     setIsSubmitting(true);
     try {
-      const payload = {
-        items: selectedRx.items.map((item: any) => ({
-          prescription_item_id: item.prescription_item_id,
-          quantity: item.quantity_remaining > 0 ? item.quantity_remaining : item.quantity_prescribed,
-        })),
-        notes: dispenseNotes || 'Dispensed via FEFO protocol at primary dispensary',
-      };
-
-      const res = await api.post(`/prescriptions/${selectedRx.prescription_id}/dispense-fefo`, payload);
-      setDispenseSuccess(res.data);
-      setActionSuccess(`Prescription dispensed successfully for ${selectedRx.patient_name}`);
-      setIsDispenseModalOpen(false);
-
-      // Offer patient counselling note recording
-      setCounsellingSummary(`Patient counseled on dosages for ${selectedRx.items.map((i: any) => i.medication_name).join(', ')}. Warned about side effects.`);
-      setIsCounsellingModalOpen(true);
-
-      fetchPharmacistData();
-    } catch (err: any) {
-      alert(err?.detail || 'Failed to dispense prescription. Check stock availability.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // Submit Counselling Note
-  const handleSubmitCounselling = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedRx) return;
-    setIsSubmitting(true);
-    try {
-      await api.post('/pharmacist/patient-counselling', {
-        prescription_id: selectedRx.prescription_id,
-        patient_id: selectedRx.patient_id || '00000000-0000-0000-0000-000000000000',
-        counselling_summary: counsellingSummary,
-        language_used: counsellingLang,
-        patient_understood: patientUnderstood,
-        follow_up_recommended: followUpRecommended,
-        follow_up_notes: followUpNotes || undefined,
+      const res = await api.post(`/pharmacy/prescriptions/${selectedRx.id}/dispense`, {
+        notes: dispenseNotes || 'Dispensed as per physician electronic prescription',
       });
-      setActionSuccess('Counselling audit trail saved');
-      setIsCounsellingModalOpen(false);
-      setSelectedRx(null);
-    } catch (err: any) {
-      alert(err?.detail || 'Failed to save counselling note');
+
+      if (res.data) {
+        setActionSuccess(`Prescription for ${selectedRx.patient_name || 'Patient'} verified and dispensed!`);
+        setIsDispenseModalOpen(false);
+        fetchPharmacistData();
+      } else {
+        alert(res.error?.detail || 'Failed to dispense prescription.');
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Receive Transfer with Discrepancy Verification
+  const handleCreateSupplyRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedMedForRequest) return;
+
+    setIsSubmitting(true);
+    try {
+      const res = await api.post('/supply/requests', {
+        medication_id: selectedMedForRequest.id,
+        quantity_requested: Number(requestedQty),
+        priority: requestPriority,
+        notes: requestJustification || 'Facility buffer replenishment',
+      });
+
+      if (res.data) {
+        setActionSuccess(`Replenishment indent for ${selectedMedForRequest.generic_name} transmitted to District Supply Officer.`);
+        setIsSupplyRequestModalOpen(false);
+        fetchPharmacistData();
+      } else {
+        alert(res.error?.detail || 'Failed to submit indent request.');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleReceiveTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTransfer) return;
+
     setIsSubmitting(true);
     try {
-      await api.patch(`/transfers/${selectedTransfer.id}/receive`, {
+      const res = await api.post(`/supply/transfers/${selectedTransfer.id}/receive`, {
         received_quantity: Number(receivedQty),
         damaged_quantity: Number(damagedQty),
-        batch_number: receiptBatchNo || undefined,
-        expiry_date: receiptExpiry || undefined,
-        discrepancy_reason: discrepancyReason || undefined,
-        notes: 'Verified and received by PHC Pharmacist',
+        batch_number: receiptBatchNo || 'BAT-2026-INB',
+        expiry_date: receiptExpiry || '2027-12-31',
+        notes: discrepancyReason || 'Stock goods received note (GRN) verified',
       });
-      setActionSuccess(`Stock transfer ${selectedTransfer.transfer_number} received & stock updated`);
-      setIsReceiveModalOpen(false);
-      setSelectedTransfer(null);
-      fetchPharmacistData();
-    } catch (err: any) {
-      alert(err?.detail || 'Failed to receive transfer');
+
+      if (res.data) {
+        setActionSuccess('Stock Goods Receipt Note (GRN) recorded and stock balance credited.');
+        setIsReceiveModalOpen(false);
+        fetchPharmacistData();
+      } else {
+        alert(res.error?.detail || 'Failed to confirm receipt.');
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Raise Supply Request to District Warehouse
-  const handleRaiseSupplyRequest = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedMedForRequest) return;
-    setIsSubmitting(true);
-    try {
-      await api.post('/supply-requests', {
-        medication_id: selectedMedForRequest.medication_id || selectedMedForRequest.id,
-        requested_quantity: Number(requestedQty),
-        priority: requestPriority,
-        clinical_justification: requestJustification || 'Replenishment for depleted dispensary stock buffer',
-      });
-      setActionSuccess(`Indent raised for ${selectedMedForRequest.medication_name || selectedMedForRequest.name}`);
-      setIsSupplyRequestModalOpen(false);
-      setSelectedMedForRequest(null);
-      setRequestJustification('');
-      fetchPharmacistData();
-    } catch (err: any) {
-      alert(err?.detail || 'Failed to raise supply request');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  if (isLoading) {
+    return <StateView state="loading" message="Loading dispensary queue and medicine stock..." />;
+  }
 
-  // Query Drug Info AI
-  const handleQueryDrugInfo = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedMedIdForInfo) return;
-    setIsQueryingDrugInfo(true);
-    try {
-      const res = await api.post<any>('/pharmacist/drug-info', {
-        medication_id: selectedMedIdForInfo,
-        query_type: drugQueryType,
-      });
-      if (res.data) setDrugInfoResult(res.data);
-    } catch (err: any) {
-      alert(err?.detail || 'Failed to fetch drug information');
-    } finally {
-      setIsQueryingDrugInfo(false);
-    }
-  };
-
-  if (isLoading) return <StateView type="loading" message="Loading dispensary pharmacy portal..." />;
-  if (error) return <StateView type="error" message={error} onRetry={fetchPharmacistData} />;
+  const criticalShortages = stockAlerts.filter((a) => a.severity === 'CRITICAL' || a.alert_type === 'STOCKOUT');
+  const pendingTransfers = transfers.filter((t) => t.status === 'IN_TRANSIT' || t.status === 'APPROVED');
 
   return (
-    <div className="space-y-6">
-      {/* Header Banner */}
-      <div className="bg-gradient-to-r from-blue-800 to-indigo-900 text-white rounded-xl p-6 shadow-md">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 text-blue-200 text-sm font-semibold tracking-wide uppercase">
-              <Pill className="w-4 h-4" />
-              <span>Role 05: Dispensary Pharmacist</span>
-            </div>
-            <h1 className="text-2xl font-bold mt-1">Dispensary Stock & Prescription Dispenser</h1>
-            <p className="text-blue-100 text-sm mt-1">
-              Zero-leakage FEFO batch fulfillment, low-stock reorder automation, and bilingual Tamil Nadu drug formulary.
-            </p>
-          </div>
-          <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md px-4 py-3 rounded-lg border border-white/20">
-            <Package className="w-5 h-5 text-blue-200" />
-            <div>
-              <div className="text-xs text-blue-200 uppercase font-bold">Pending Dispense</div>
-              <div className="text-lg font-black">{dispenseQueue.length} Prescriptions</div>
-            </div>
-          </div>
-        </div>
+    <div className="flex flex-col gap-6 animate-fade-in">
+      {/* Context-First Dispensary Header */}
+      <PageHeader
+        breadcrumbs={[
+          { label: 'Dispensary Services' },
+          { label: 'Pharmacy Dispensary Desk' },
+        ]}
+        facilityContext="Thirukalukundram PHC • Chengalpattu"
+        title="Dispensary &amp; Formulary Counter"
+        description="Electronic prescription verification and dispensing, real-time buffer threshold tracking, batch expiry surveillance, and district supply indents."
+        actions={
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => {
+              if (inventoryItems.length > 0) {
+                setSelectedMedForRequest(inventoryItems[0]);
+                setIsSupplyRequestModalOpen(true);
+              }
+            }}
+            className="gap-1.5 shadow-xs"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Create Supply Indent</span>
+          </Button>
+        }
+        metrics={[
+          {
+            label: 'Prescriptions in Queue',
+            value: dispenseQueue.length,
+            hint: 'Awaiting patient pickup',
+            variant: dispenseQueue.length > 0 ? 'sky' : 'default',
+            icon: <Pill className="w-4 h-4" />,
+          },
+          {
+            label: 'Formulary Stock',
+            value: `${inventoryItems.length} Drugs`,
+            hint: 'Active batches',
+            variant: 'default',
+            icon: <Box className="w-4 h-4" />,
+          },
+          {
+            label: 'Stock Alerts',
+            value: stockAlerts.length,
+            hint: `${criticalShortages.length} critical stockouts`,
+            variant: criticalShortages.length > 0 ? 'destructive' : 'warning',
+            icon: <AlertTriangle className="w-4 h-4" />,
+          },
+          {
+            label: 'Inbound Receipts',
+            value: pendingTransfers.length,
+            hint: 'From District Medical Store',
+            variant: pendingTransfers.length > 0 ? 'sky' : 'default',
+            icon: <Truck className="w-4 h-4" />,
+          },
+        ]}
+      />
 
-        {actionSuccess && (
-          <div className="mt-4 bg-emerald-500/20 border border-emerald-400 text-emerald-100 px-4 py-2.5 rounded-lg flex items-center justify-between text-sm animate-fade-in">
-            <span className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-emerald-300" />
-              {actionSuccess}
-            </span>
-            <button onClick={() => setActionSuccess(null)} className="text-blue-200 hover:text-white text-xs font-bold uppercase">
-              Dismiss
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Tabs */}
-      <div className="flex border-b border-gray-200 bg-white px-4 rounded-lg shadow-sm overflow-x-auto">
-        <button
-          onClick={() => handleTabChange('dispense')}
-          className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
-            activeTab === 'dispense'
-              ? 'border-blue-600 text-blue-700 font-semibold'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <Clock className="w-4 h-4" />
-          Pending Dispense Queue
-          {dispenseQueue.length > 0 && (
-            <span className="bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full font-bold">
-              {dispenseQueue.length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => handleTabChange('alerts')}
-          className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
-            activeTab === 'alerts'
-              ? 'border-blue-600 text-blue-700 font-semibold'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <AlertTriangle className="w-4 h-4" />
-          Stock Shortage & Expiry Alerts
-          {stockAlerts.length > 0 && (
-            <span className="bg-amber-100 text-amber-800 text-xs px-2 py-0.5 rounded-full font-bold">
-              {stockAlerts.length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => handleTabChange('inventory')}
-          className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
-            activeTab === 'inventory'
-              ? 'border-blue-600 text-blue-700 font-semibold'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <Layers className="w-4 h-4" />
-          Stock-On-Hand Registry
-        </button>
-        <button
-          onClick={() => handleTabChange('transfers')}
-          className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
-            activeTab === 'transfers'
-              ? 'border-blue-600 text-blue-700 font-semibold'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <Truck className="w-4 h-4" />
-          Inbound Transfers & Receipts
-        </button>
-        <button
-          onClick={() => handleTabChange('druginfo')}
-          className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
-            activeTab === 'druginfo'
-              ? 'border-blue-600 text-blue-700 font-semibold'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          <BookOpen className="w-4 h-4" />
-          Drug Formulary AI (Tamil / EN)
-        </button>
-      </div>
-
-      {/* TAB 1: PENDING DISPENSE QUEUE */}
-      {activeTab === 'dispense' && (
-        <div className="space-y-4">
-          <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-bold text-gray-900">Physician Prescriptions Awaiting Fulfillment</h3>
-              <p className="text-xs text-gray-500">Atomic stock deduction using First-Expire-First-Out (FEFO) batch priority.</p>
-            </div>
-            <button
-              onClick={fetchPharmacistData}
-              className="text-xs font-semibold text-blue-700 hover:text-blue-800 px-3 py-1.5 bg-blue-50 rounded-lg"
-            >
-              Refresh Queue
-            </button>
-          </div>
-
-          <DataTable
-            data={dispenseQueue}
-            keyField="prescription_id"
-            emptyMessage="No pending prescriptions in the dispensary queue."
-            columns={[
-              {
-                header: 'Patient',
-                accessor: (rx) => (
-                  <div>
-                    <div className="font-semibold text-gray-900">{rx.patient_name}</div>
-                    <div className="text-xs text-gray-400 font-mono">{rx.patient_identifier || 'ID: Assigned'}</div>
-                  </div>
-                ),
-              },
-              {
-                header: 'Doctor',
-                accessor: (rx) => (
-                  <span className="text-sm font-medium text-gray-700">{rx.doctor_name}</span>
-                ),
-              },
-              {
-                header: 'Issued At',
-                accessor: (rx) => new Date(rx.issued_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              },
-              {
-                header: 'Prescribed Items',
-                accessor: (rx) => (
-                  <div className="space-y-1">
-                    {rx.items?.map((item: any, idx: number) => (
-                      <div key={idx} className="text-xs flex items-center gap-1.5 text-gray-800">
-                        <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
-                        <span className="font-medium">{item.medication_name}</span>
-                        <span className="text-gray-500">({item.quantity_prescribed} units)</span>
-                      </div>
-                    ))}
-                  </div>
-                ),
-              },
-              {
-                header: 'Action',
-                accessor: (rx) => (
-                  <button
-                    onClick={() => {
-                      setSelectedRx(rx);
-                      setIsDispenseModalOpen(true);
-                    }}
-                    className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-sm transition"
-                  >
-                    <Pill className="w-3.5 h-3.5" />
-                    Dispense FEFO
-                  </button>
-                ),
-              },
-            ]}
-          />
-        </div>
-      )}
-
-      {/* TAB 2: STOCK ALERTS & SHORTAGES */}
-      {activeTab === 'alerts' && (
-        <div className="space-y-4">
-          <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-bold text-gray-900">Critical Medicine Stock & Expiry Watchlist</h3>
-              <p className="text-xs text-gray-500">Items below minimum stock levels or expiring within 30 days.</p>
-            </div>
-            <span className="text-xs font-semibold px-2.5 py-1 bg-amber-50 text-amber-800 rounded-lg border border-amber-200">
-              Auto-monitored by Rule Engine
-            </span>
-          </div>
-
-          <DataTable
-            data={stockAlerts}
-            keyField="inventory_item_id"
-            emptyMessage="All medicines are above reorder threshold. No immediate shortage risks."
-            columns={[
-              {
-                header: 'Medication',
-                accessor: (alert) => (
-                  <div>
-                    <div className="font-semibold text-gray-900">{alert.medication_name}</div>
-                    <div className="text-xs text-gray-400">Reorder Level: {alert.reorder_level} units</div>
-                  </div>
-                ),
-              },
-              {
-                header: 'Current Stock',
-                accessor: (alert) => (
-                  <span className={`font-black text-sm ${alert.quantity_on_hand === 0 ? 'text-red-600' : 'text-amber-600'}`}>
-                    {alert.quantity_on_hand} units
-                  </span>
-                ),
-              },
-              {
-                header: 'Risk Classification',
-                accessor: (alert) => (
-                  <Badge 
-                    label={alert.stock_status} 
-                    status={alert.stock_status === 'OUT_OF_STOCK' ? 'danger' : 'warning'} 
-                  />
-                ),
-              },
-              {
-                header: 'Near-Expiry (≤30 Days)',
-                accessor: (alert) => (
-                  <span className={alert.near_expiry_quantity > 0 ? 'text-red-600 font-bold text-xs' : 'text-gray-400 text-xs'}>
-                    {alert.near_expiry_quantity > 0 ? `${alert.near_expiry_quantity} units expiring!` : 'None'}
-                  </span>
-                ),
-              },
-              {
-                header: 'Replenishment Action',
-                accessor: (alert) => (
-                  <button
-                    onClick={() => {
-                      setSelectedMedForRequest(alert);
-                      setIsSupplyRequestModalOpen(true);
-                    }}
-                    className="px-3 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded text-xs font-semibold flex items-center gap-1 transition"
-                  >
-                    <Send className="w-3 h-3" />
-                    Raise Indent
-                  </button>
-                ),
-              },
-            ]}
-          />
-        </div>
-      )}
-
-      {/* TAB 3: INVENTORY STOCK-ON-HAND */}
-      {activeTab === 'inventory' && (
-        <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-bold text-gray-900">Dispensary Stock-On-Hand</h3>
-              <p className="text-xs text-gray-500">Live physical stock balances at this facility.</p>
-            </div>
-            <div className="text-xs text-gray-500 font-medium">
-              Total Catalog Items: {inventoryItems.length}
-            </div>
-          </div>
-
-          <DataTable
-            data={inventoryItems}
-            keyField="id"
-            emptyMessage="No stock inventory registered at this facility."
-            columns={[
-              {
-                header: 'Medication',
-                accessor: (item) => (
-                  <div>
-                    <div className="font-semibold text-gray-900">{item.generic_name || item.medication?.name}</div>
-                    <div className="text-xs text-gray-400">{item.brand_name || 'Generic NEML'}</div>
-                  </div>
-                ),
-              },
-              {
-                header: 'Dosage Form',
-                accessor: (item) => `${item.dosage_form || 'Tablet'} ${item.strength || ''}`,
-              },
-              {
-                header: 'Quantity on Hand',
-                accessor: (item) => (
-                  <span className="font-bold text-gray-900">{item.quantity_on_hand}</span>
-                ),
-              },
-              {
-                header: 'Reorder Level',
-                accessor: 'reorder_level',
-              },
-              {
-                header: 'Status',
-                accessor: (item) => (
-                  <Badge 
-                    label={item.quantity_on_hand <= item.reorder_level ? 'Low Stock' : 'Adequate'} 
-                    status={item.quantity_on_hand <= item.reorder_level ? 'warning' : 'success'} 
-                  />
-                ),
-              },
-              {
-                header: 'Action',
-                accessor: (item) => (
-                  <button
-                    onClick={() => {
-                      setSelectedMedForRequest({
-                        medication_id: item.medication_id,
-                        medication_name: item.generic_name || item.medication?.name,
-                      });
-                      setIsSupplyRequestModalOpen(true);
-                    }}
-                    className="text-xs font-semibold text-blue-700 hover:text-blue-800"
-                  >
-                    Request Stock +
-                  </button>
-                ),
-              },
-            ]}
-          />
-        </div>
-      )}
-
-      {/* TAB 4: INBOUND TRANSFERS & RECEIPTS */}
-      {activeTab === 'transfers' && (
-        <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm space-y-4">
-          <div>
-            <h3 className="text-base font-bold text-gray-900">Inbound Stock Shipments & Physical Receipts</h3>
-            <p className="text-xs text-gray-500">Reconcile dispatched quantities against actual physical delivery.</p>
-          </div>
-
-          <DataTable
-            data={transfers}
-            keyField="id"
-            emptyMessage="No inbound stock transfers recorded for this facility."
-            columns={[
-              {
-                header: 'Transfer Number',
-                accessor: (t) => <span className="font-mono font-bold text-gray-900">{t.transfer_number}</span>,
-              },
-              {
-                header: 'Medicine',
-                accessor: (t) => t.medication?.name || 'General Batch Consignment',
-              },
-              {
-                header: 'Dispatched Qty',
-                accessor: (t) => `${t.dispatched_quantity || t.requested_quantity} units`,
-              },
-              {
-                header: 'Status',
-                accessor: (t) => (
-                  <Badge 
-                    label={t.status} 
-                    status={t.status === 'RECEIVED' ? 'success' : t.status === 'IN_TRANSIT' ? 'info' : 'warning'} 
-                  />
-                ),
-              },
-              {
-                header: 'Action',
-                accessor: (t) => (
-                  t.status === 'IN_TRANSIT' ? (
-                    <button
-                      onClick={() => {
-                        setSelectedTransfer(t);
-                        setReceivedQty(t.dispatched_quantity || t.requested_quantity);
-                        setDamagedQty(0);
-                        setIsReceiveModalOpen(true);
-                      }}
-                      className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-semibold"
-                    >
-                      Verify Receipt
-                    </button>
-                  ) : (
-                    <span className="text-xs text-gray-400 font-medium">Reconciled</span>
-                  )
-                ),
-              },
-            ]}
-          />
-        </div>
-      )}
-
-      {/* TAB 5: DRUG INFORMATION AI (TAMIL / EN) */}
-      {activeTab === 'druginfo' && (
-        <div className="space-y-6">
-          <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-            <h3 className="text-base font-bold text-gray-900 mb-1">
-              Tamil Nadu State Essential Medicines Formulary & Drug Information AI
-            </h3>
-            <p className="text-xs text-gray-500 mb-4">
-              Access bilingual clinical pharmacology, drug-drug interaction warnings, storage criteria, and Tamil patient counselling points.
-            </p>
-
-            <form onSubmit={handleQueryDrugInfo} className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Select Medicine</label>
-                <select
-                  value={selectedMedIdForInfo}
-                  onChange={(e) => setSelectedMedIdForInfo(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg p-2.5 text-sm"
-                  required
-                >
-                  {medicationsList.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name} ({m.strength})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Query Focus</label>
-                <select
-                  value={drugQueryType}
-                  onChange={(e) => setDrugQueryType(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg p-2.5 text-sm"
-                >
-                  <option value="general">General Clinical Profile</option>
-                  <option value="interactions">Drug-Drug Interactions</option>
-                  <option value="storage">Storage & Cold Chain Protocol</option>
-                  <option value="counselling_points">Patient Counselling Points</option>
-                  <option value="substitution">TN-NEML Generic Substitution</option>
-                </select>
-              </div>
-
-              <div className="flex items-end">
-                <button
-                  type="submit"
-                  disabled={isQueryingDrugInfo}
-                  className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition"
-                >
-                  <Sparkles className="w-4 h-4 text-blue-200" />
-                  {isQueryingDrugInfo ? 'Consulting Knowledge Base...' : 'Query Formulary AI'}
-                </button>
-              </div>
-            </form>
-          </div>
-
-          {/* Drug Info Result Display */}
-          {drugInfoResult && (
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-5 animate-fade-in">
-              <div className="flex items-start justify-between border-b pb-4">
-                <div>
-                  <h4 className="text-xl font-bold text-gray-900">{drugInfoResult.medication_name}</h4>
-                  <span className="text-xs uppercase tracking-wider font-semibold text-blue-600">
-                    Topic: {drugInfoResult.query_type}
-                  </span>
-                </div>
-                <div className="text-xs font-bold px-3 py-1 bg-blue-50 text-blue-800 rounded-full border border-blue-200">
-                  TN-NEML Certified
-                </div>
-              </div>
-
-              {/* Warnings alert if any */}
-              {drugInfoResult.warnings?.length > 0 && (
-                <div className="p-4 bg-amber-50 border border-amber-300 rounded-lg text-amber-900 space-y-1">
-                  <div className="font-bold flex items-center gap-1.5 text-sm">
-                    <AlertTriangle className="w-4 h-4 text-amber-600" />
-                    Clinical Safety Warnings & Contraindications:
-                  </div>
-                  <ul className="list-disc list-inside text-xs pl-2 space-y-1">
-                    {drugInfoResult.warnings.map((w: string, i: number) => (
-                      <li key={i}>{w}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Bilingual Details Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                  <h5 className="font-bold text-gray-900 text-sm mb-2 flex items-center gap-1.5">
-                    English Clinical Information
-                  </h5>
-                  <p className="text-xs text-gray-700 leading-relaxed whitespace-pre-line">
-                    {drugInfoResult.information_en}
-                  </p>
-                  {drugInfoResult.counselling_points_en?.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-gray-200">
-                      <div className="text-xs font-bold text-gray-800 mb-1">Counselling Guidance:</div>
-                      <ul className="list-disc list-inside text-xs text-gray-600 space-y-1">
-                        {drugInfoResult.counselling_points_en.map((p: string, i: number) => (
-                          <li key={i}>{p}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-
-                <div className="p-4 bg-blue-50/50 rounded-lg border border-blue-200">
-                  <h5 className="font-bold text-blue-900 text-sm mb-2 flex items-center gap-1.5">
-                    தமிழ் நோயாளி ஆலோசனை வழிகாட்டுதல் (Tamil Translation)
-                  </h5>
-                  <p className="text-xs text-gray-800 leading-relaxed whitespace-pre-line font-tamil">
-                    {drugInfoResult.information_ta}
-                  </p>
-                  {drugInfoResult.counselling_points_ta?.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-blue-200">
-                      <div className="text-xs font-bold text-blue-900 mb-1">நோயாளிக்கு விளக்க வேண்டியவை:</div>
-                      <ul className="list-disc list-inside text-xs text-gray-700 space-y-1 font-tamil">
-                        {drugInfoResult.counselling_points_ta.map((p: string, i: number) => (
-                          <li key={i}>{p}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* MODAL: FEFO Dispensing Confirmation */}
-      <Modal
-        isOpen={isDispenseModalOpen}
-        onClose={() => setIsDispenseModalOpen(false)}
-        title={`Dispense Prescription — ${selectedRx?.patient_name}`}
-      >
-        <form onSubmit={handleDispenseFEFO} className="space-y-4">
-          <div className="bg-gray-50 p-3 rounded-lg text-xs space-y-1.5 border">
-            <div className="flex justify-between">
-              <span className="text-gray-500">Patient Identifier:</span>
-              <span className="font-mono font-bold">{selectedRx?.patient_identifier || 'Auto-generated'}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">Prescribing Doctor:</span>
-              <span className="font-semibold">{selectedRx?.doctor_name}</span>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase mb-2">FEFO Allocation Preview</label>
-            <div className="space-y-3">
-              {selectedRx?.items?.map((item: any, i: number) => (
-                <div key={i} className="p-3 bg-blue-50/40 border border-blue-100 rounded-lg text-xs">
-                  <div className="flex justify-between font-bold text-gray-900 mb-1">
-                    <span>{item.medication_name} ({item.dosage})</span>
-                    <span>Prescribed: {item.quantity_prescribed} units</span>
-                  </div>
-                  {item.fefo_batches?.length > 0 ? (
-                    <div className="text-gray-600 mt-1">
-                      <span className="font-medium text-emerald-700">Allocated Batch:</span> {item.fefo_batches[0].batch_number} (Exp: {item.fefo_batches[0].expiry_date}, Avail: {item.fefo_batches[0].available_quantity})
-                    </div>
-                  ) : (
-                    <span className="text-amber-600 font-medium">⚠️ No batch detected. Will auto-allocate from facility FEFO pool.</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Dispensing Notes</label>
-            <input
-              type="text"
-              value={dispenseNotes}
-              onChange={(e) => setDispenseNotes(e.target.value)}
-              placeholder="e.g. Dispensed complete 5-day course"
-              className="w-full border border-gray-300 rounded-lg p-2.5 text-sm"
-            />
-          </div>
-
-          <div className="flex justify-end gap-2 pt-3 border-t">
-            <button
-              type="button"
-              onClick={() => setIsDispenseModalOpen(false)}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold"
-            >
-              {isSubmitting ? 'Dispensing...' : 'Confirm & Deduct Stock'}
-            </button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* MODAL: Record Medication Counselling Note */}
-      <Modal
-        isOpen={isCounsellingModalOpen}
-        onClose={() => setIsCounsellingModalOpen(false)}
-        title="Record Medication Counselling Note"
-      >
-        <form onSubmit={handleSubmitCounselling} className="space-y-4">
-          <p className="text-xs text-gray-600">
-            Confirm that patient or attendant received dosage, timing, and storage instructions.
-          </p>
-
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Counselling Language</label>
-            <select
-              value={counsellingLang}
-              onChange={(e) => setCounsellingLang(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg p-2 text-sm"
-            >
-              <option value="TAMIL">Tamil (தமிழ்)</option>
-              <option value="ENGLISH">English</option>
-              <option value="BILINGUAL">Bilingual (Tamil + English)</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Summary of Advice Given</label>
-            <textarea
-              value={counsellingSummary}
-              onChange={(e) => setCounsellingSummary(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg p-2.5 text-sm h-20"
-              required
-            />
-          </div>
-
+      {actionSuccess && (
+        <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl text-xs font-semibold flex items-center justify-between gap-3 animate-fade-in shadow-2xs">
           <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="patientUnderstood"
-              checked={patientUnderstood}
-              onChange={(e) => setPatientUnderstood(e.target.checked)}
-              className="rounded text-blue-600"
+            <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{actionSuccess}</span>
+          </div>
+          <button
+            onClick={() => setActionSuccess(null)}
+            className="text-emerald-700 hover:text-emerald-950 underline text-xs cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {/* Sub Navigation Tabs */}
+      <div className="flex items-center gap-1.5 p-1 bg-slate-100 border border-slate-200/80 rounded-xl overflow-x-auto no-scrollbar max-w-full">
+        {[
+          { key: 'dispense', label: `Dispense Queue (${dispenseQueue.length})`, icon: <Pill className="w-4 h-4" /> },
+          { key: 'alerts', label: `Stock Alerts (${stockAlerts.length})`, icon: <AlertTriangle className="w-4 h-4" /> },
+          { key: 'inventory', label: `Medicine Stock (${inventoryItems.length})`, icon: <Box className="w-4 h-4" /> },
+          { key: 'transfers', label: `Inbound GRN Receipts (${transfers.length})`, icon: <Truck className="w-4 h-4" /> },
+        ].map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => handleTabChange(tab.key as any)}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer select-none ${
+              activeTab === tab.key
+                ? 'bg-white text-sky-900 shadow-2xs font-extrabold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+            }`}
+          >
+            {tab.icon}
+            <span>{tab.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* TAB 1: DISPENSE QUEUE */}
+      {activeTab === 'dispense' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Prescriptions Waiting for Verification &amp; Dispensing</CardTitle>
+            <CardDescription>
+              Electronic doctor orders generated during OPD consultation. Verify medicines, instruct citizen, and confirm dispense.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DataTable
+              data={dispenseQueue}
+              keyExtractor={(rx) => rx.id}
+              searchFilter={(rx, q) =>
+                (rx.patient_name || '').toLowerCase().includes(q) ||
+                (rx.patient_identifier || '').toLowerCase().includes(q) ||
+                (rx.doctor_name || '').toLowerCase().includes(q)
+              }
+              emptyTitle="No Prescriptions Waiting"
+              emptyMessage="All outpatient doctor prescriptions have been dispensed."
+              columns={[
+                {
+                  key: 'id',
+                  header: 'Prescription Ref',
+                  render: (rx) => <span className="font-mono text-xs text-slate-700 font-bold">Rx-{rx.id.slice(0, 8)}</span>,
+                },
+                {
+                  key: 'patient',
+                  header: 'Patient Details',
+                  render: (rx) => (
+                    <div>
+                      <span className="font-bold text-slate-900 block">{rx.patient_name || 'Citizen'}</span>
+                      <span className="text-[11px] text-slate-500 font-mono">{rx.patient_identifier || 'DEMO-PAT-0001'}</span>
+                    </div>
+                  ),
+                },
+                {
+                  key: 'doctor',
+                  header: 'Prescribing Doctor',
+                  render: (rx) => <span className="text-xs font-semibold text-slate-700">{rx.doctor_name || 'Dr. Ramesh'}</span>,
+                },
+                {
+                  key: 'items',
+                  header: 'Prescribed Items',
+                  render: (rx) => (
+                    <div className="flex flex-wrap gap-1 max-w-xs">
+                      {rx.items?.map((it: any, idx: number) => (
+                        <span key={idx} className="px-2 py-0.5 rounded bg-sky-50 text-sky-800 border border-sky-100 text-[11px] font-medium">
+                          {it.medication_name} ({it.dosage})
+                        </span>
+                      )) || <span className="text-xs text-slate-400">Standard Pack</span>}
+                    </div>
+                  ),
+                },
+                {
+                  key: 'status',
+                  header: 'Status',
+                  render: (rx) => <Badge status={rx.status || 'PENDING_DISPENSING'} size="sm" />,
+                },
+                {
+                  key: 'action',
+                  header: 'Action',
+                  render: (rx) => (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedRx(rx);
+                        setDispenseNotes('');
+                        setIsDispenseModalOpen(true);
+                      }}
+                      className="h-7 text-xs px-2.5 gap-1 shadow-xs"
+                    >
+                      <ClipboardCheck className="w-3.5 h-3.5" />
+                      <span>Verify &amp; Dispense</span>
+                    </Button>
+                  ),
+                },
+              ]}
             />
-            <label htmlFor="patientUnderstood" className="text-xs font-medium text-gray-700">
-              Patient/attendant clearly understood dosage schedule and administration instructions
-            </label>
-          </div>
+          </CardContent>
+        </Card>
+      )}
 
-          <div className="flex justify-end gap-2 pt-3 border-t">
-            <button
-              type="button"
-              onClick={() => setIsCounsellingModalOpen(false)}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
-            >
-              Skip
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold"
-            >
-              {isSubmitting ? 'Saving...' : 'Save Counselling Audit'}
-            </button>
-          </div>
-        </form>
-      </Modal>
+      {/* TAB 2: STOCK ALERTS */}
+      {activeTab === 'alerts' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Dispensary Medicine Stockout &amp; Expiry Alerts</CardTitle>
+            <CardDescription>
+              Inventory items breached below minimum buffer threshold or expiring within 60 days.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DataTable
+              data={stockAlerts}
+              keyExtractor={(a) => a.id || a.medication_id}
+              emptyTitle="No Active Stock Alerts"
+              emptyMessage="All formulary items are safely above buffer thresholds with no near-term expiries."
+              columns={[
+                {
+                  key: 'med',
+                  header: 'Medication',
+                  render: (a) => (
+                    <div>
+                      <span className="font-bold text-slate-900 block">{a.medication_name || a.generic_name}</span>
+                      <span className="text-[11px] text-slate-400">{a.dosage_form || 'Tablets'}</span>
+                    </div>
+                  ),
+                },
+                {
+                  key: 'alert_type',
+                  header: 'Alert Type',
+                  render: (a) => (
+                    <span className="text-xs font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded border border-red-200">
+                      {a.alert_type || 'LOW_STOCK'}
+                    </span>
+                  ),
+                },
+                {
+                  key: 'balance',
+                  header: 'Current Stock',
+                  render: (a) => <span className="font-mono text-xs font-bold text-slate-800">{a.current_stock ?? a.current_balance ?? 0} units</span>,
+                },
+                {
+                  key: 'buffer',
+                  header: 'Buffer Target',
+                  render: (a) => <span className="font-mono text-xs text-slate-500">{a.buffer_target ?? a.reorder_level ?? 200} units</span>,
+                },
+                {
+                  key: 'action',
+                  header: 'Indent Requisition',
+                  render: (a) => (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedMedForRequest({
+                          id: a.medication_id || a.id,
+                          generic_name: a.medication_name || a.generic_name,
+                        });
+                        setIsSupplyRequestModalOpen(true);
+                      }}
+                      className="h-7 text-xs px-2.5 text-sky-700"
+                    >
+                      Request Indent
+                    </Button>
+                  ),
+                },
+              ]}
+            />
+          </CardContent>
+        </Card>
+      )}
 
-      {/* MODAL: Verify Inbound Stock Receipt */}
-      <Modal
-        isOpen={isReceiveModalOpen}
-        onClose={() => setIsReceiveModalOpen(false)}
-        title={`Verify Inbound Receipt — ${selectedTransfer?.transfer_number}`}
-      >
-        <form onSubmit={handleReceiveTransfer} className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Dispatched Quantity</label>
-              <input
-                type="text"
-                disabled
-                value={`${selectedTransfer?.dispatched_quantity || selectedTransfer?.requested_quantity} units`}
-                className="w-full bg-gray-100 border border-gray-300 rounded-lg p-2 text-sm font-bold text-gray-600"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Physically Received Qty</label>
-              <input
-                type="number"
-                value={receivedQty}
-                onChange={(e) => setReceivedQty(Number(e.target.value))}
-                className="w-full border border-gray-300 rounded-lg p-2 text-sm font-bold"
-                required
-              />
-            </div>
-          </div>
+      {/* TAB 3: INVENTORY ITEMS */}
+      {activeTab === 'inventory' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>PHC Formulary Medicine Stock Ledger</CardTitle>
+            <CardDescription>
+              Complete dispensary stock balance, batch numbers, storage requirements, and expiry schedule.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DataTable
+              data={inventoryItems}
+              keyExtractor={(m) => m.id}
+              searchFilter={(m, q) =>
+                (m.generic_name || '').toLowerCase().includes(q) ||
+                (m.brand_name || '').toLowerCase().includes(q) ||
+                (m.category || '').toLowerCase().includes(q)
+              }
+              emptyTitle="Formulary Empty"
+              emptyMessage="No medicines registered in dispensary inventory."
+              columns={[
+                {
+                  key: 'generic',
+                  header: 'Generic Name',
+                  render: (m) => (
+                    <div>
+                      <span className="font-bold text-slate-900 block">{m.generic_name}</span>
+                      <span className="text-[11px] text-slate-400">{m.brand_name || m.dosage_form}</span>
+                    </div>
+                  ),
+                },
+                { key: 'strength', header: 'Strength', render: (m) => <span className="font-mono text-xs">{m.strength}</span> },
+                {
+                  key: 'category',
+                  header: 'Category',
+                  render: (m) => <span className="text-xs text-slate-600">{m.category || 'Essential Drug'}</span>,
+                },
+                {
+                  key: 'balance',
+                  header: 'Stock Units',
+                  render: (m) => {
+                    const bal = m.current_balance ?? m.stock_quantity ?? 0;
+                    const buf = m.reorder_level ?? 100;
+                    return (
+                      <span className={`font-mono text-xs font-bold ${bal <= buf ? 'text-red-600' : 'text-slate-800'}`}>
+                        {bal} units
+                      </span>
+                    );
+                  },
+                },
+                {
+                  key: 'status',
+                  header: 'Status',
+                  render: (m) => {
+                    const bal = m.current_balance ?? m.stock_quantity ?? 0;
+                    const buf = m.reorder_level ?? 100;
+                    return <Badge status={bal <= 0 ? 'STOCKOUT' : bal <= buf ? 'LOW_STOCK' : 'AVAILABLE'} size="sm" />;
+                  },
+                },
+                {
+                  key: 'action',
+                  header: 'Indent',
+                  render: (m) => (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedMedForRequest(m);
+                        setIsSupplyRequestModalOpen(true);
+                      }}
+                      className="h-7 text-xs px-2"
+                    >
+                      Indent
+                    </Button>
+                  ),
+                },
+              ]}
+            />
+          </CardContent>
+        </Card>
+      )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Damaged Units (If Any)</label>
-              <input
-                type="number"
-                value={damagedQty}
-                onChange={(e) => setDamagedQty(Number(e.target.value))}
-                className="w-full border border-gray-300 rounded-lg p-2 text-sm font-bold text-red-600"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Batch Number on Package</label>
-              <input
-                type="text"
-                value={receiptBatchNo}
-                onChange={(e) => setReceiptBatchNo(e.target.value)}
-                placeholder="e.g. BATCH-2026-X1"
-                className="w-full border border-gray-300 rounded-lg p-2 text-sm"
-              />
-            </div>
-          </div>
+      {/* TAB 4: INBOUND GOODS RECEIPTS (GRN) */}
+      {activeTab === 'transfers' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Inbound Shipments &amp; Goods Receipt Notes (GRN)</CardTitle>
+            <CardDescription>
+              Dispatches from District Medical Store or neighboring PHC inter-facility rebalancing.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DataTable
+              data={transfers}
+              keyExtractor={(t) => t.id}
+              emptyTitle="No Inbound Shipments"
+              emptyMessage="No stock dispatches currently en route to this facility."
+              columns={[
+                {
+                  key: 'id',
+                  header: 'Transfer Ref',
+                  render: (t) => <span className="font-mono text-xs text-slate-700 font-bold">TRF-{t.id.slice(0, 8)}</span>,
+                },
+                {
+                  key: 'med',
+                  header: 'Medication',
+                  render: (t) => <span className="font-bold text-slate-900">{t.medication_name || 'Essential Medicine'}</span>,
+                },
+                {
+                  key: 'qty',
+                  header: 'Quantity Sent',
+                  render: (t) => <span className="font-mono text-xs font-bold text-slate-800">{t.quantity_sent || t.quantity || 500} units</span>,
+                },
+                {
+                  key: 'origin',
+                  header: 'Origin Facility',
+                  render: (t) => <span className="text-xs text-slate-600">{t.origin_facility_name || 'District Central Medical Store'}</span>,
+                },
+                {
+                  key: 'status',
+                  header: 'Shipment Status',
+                  render: (t) => <Badge status={t.status || 'IN_TRANSIT'} size="sm" />,
+                },
+                {
+                  key: 'action',
+                  header: 'Receive Stock',
+                  render: (t) =>
+                    t.status === 'IN_TRANSIT' || t.status === 'APPROVED' ? (
+                      <Button
+                        variant="emerald"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedTransfer(t);
+                          setReceivedQty(t.quantity_sent || t.quantity || 500);
+                          setDamagedQty(0);
+                          setReceiptBatchNo('BAT-2026-INB');
+                          setIsReceiveModalOpen(true);
+                        }}
+                        className="h-7 text-xs px-2.5 gap-1"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Log GRN</span>
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-slate-400">Completed</span>
+                    ),
+                },
+              ]}
+            />
+          </CardContent>
+        </Card>
+      )}
 
-          {receivedQty + damagedQty < (selectedTransfer?.dispatched_quantity || selectedTransfer?.requested_quantity) && (
-            <div>
-              <label className="block text-xs font-bold text-red-700 uppercase mb-1">
-                Discrepancy Explanation (Shortage in transit)
-              </label>
-              <textarea
-                value={discrepancyReason}
-                onChange={(e) => setDiscrepancyReason(e.target.value)}
-                placeholder="State reasons for missing units"
-                className="w-full border border-red-300 rounded-lg p-2 text-sm h-16 bg-red-50/30"
-                required
-              />
-            </div>
+      {/* Modal: Dispense Verification */}
+      <Dialog open={isDispenseModalOpen} onOpenChange={setIsDispenseModalOpen} maxWidth="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Verify &amp; Dispense Prescription</DialogTitle>
+          <DialogDescription>
+            Confirm physical medicine batches issued to {selectedRx?.patient_name || 'patient'}.
+          </DialogDescription>
+          <DialogClose onClose={() => setIsDispenseModalOpen(false)} />
+        </DialogHeader>
+        <DialogContent>
+          {selectedRx && (
+            <form onSubmit={handleDispensePrescription} className="space-y-4">
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1 text-xs">
+                <div>Patient: <strong>{selectedRx.patient_name}</strong> (UHID: {selectedRx.patient_identifier})</div>
+                <div>Doctor: <strong>{selectedRx.doctor_name || 'Medical Officer'}</strong></div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Prescribed Medicines</label>
+                <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                  {selectedRx.items?.map((it: any, idx: number) => (
+                    <div key={idx} className="p-2 rounded-lg border border-slate-200 text-xs flex justify-between">
+                      <span className="font-semibold text-slate-900">{it.medication_name} ({it.dosage})</span>
+                      <span className="text-slate-500 font-mono">Qty: {it.quantity_prescribed || it.duration_days * 3}</span>
+                    </div>
+                  )) || <div className="text-xs text-slate-500">Standard pack verification.</div>}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Pharmacist Dispensing Remarks</label>
+                <Input
+                  type="text"
+                  value={dispenseNotes}
+                  onChange={(e) => setDispenseNotes(e.target.value)}
+                  placeholder="Patient counselled in Tamil on dosage schedule"
+                />
+              </div>
+
+              <DialogFooter>
+                <Button type="button" variant="outline" size="sm" onClick={() => setIsDispenseModalOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" variant="primary" size="sm" disabled={isSubmitting}>
+                  {isSubmitting ? 'Confirming Dispense...' : 'Confirm & Mark Dispensed'}
+                </Button>
+              </DialogFooter>
+            </form>
           )}
+        </DialogContent>
+      </Dialog>
 
-          <div className="flex justify-end gap-2 pt-3 border-t">
-            <button
-              type="button"
-              onClick={() => setIsReceiveModalOpen(false)}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-semibold"
-            >
-              {isSubmitting ? 'Verifying...' : 'Confirm Receipt'}
-            </button>
-          </div>
-        </form>
-      </Modal>
+      {/* Modal: Create Supply Request Indent */}
+      <Dialog open={isSupplyRequestModalOpen} onOpenChange={setIsSupplyRequestModalOpen} maxWidth="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Create District Supply Requisition</DialogTitle>
+          <DialogDescription>Submit medicine stock indent to District Medical Store.</DialogDescription>
+          <DialogClose onClose={() => setIsSupplyRequestModalOpen(false)} />
+        </DialogHeader>
+        <DialogContent>
+          <form onSubmit={handleCreateSupplyRequest} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Medication Item</label>
+              <select
+                value={selectedMedForRequest?.id || ''}
+                onChange={(e) => {
+                  const found = inventoryItems.find((m) => m.id === e.target.value);
+                  setSelectedMedForRequest(found);
+                }}
+                className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg outline-none font-medium"
+              >
+                {inventoryItems.map((m) => (
+                  <option key={m.id} value={m.id}>{m.generic_name} ({m.strength})</option>
+                ))}
+              </select>
+            </div>
 
-      {/* MODAL: Raise Supply Request / Indent */}
-      <Modal
-        isOpen={isSupplyRequestModalOpen}
-        onClose={() => setIsSupplyRequestModalOpen(false)}
-        title={`Raise Replenishment Indent — ${selectedMedForRequest?.medication_name}`}
-      >
-        <form onSubmit={handleRaiseSupplyRequest} className="space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Requested Quantity (Units)</label>
-            <input
-              type="number"
-              value={requestedQty}
-              onChange={(e) => setRequestedQty(Number(e.target.value))}
-              className="w-full border border-gray-300 rounded-lg p-2.5 text-sm font-bold"
-              required
-            />
-          </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Quantity (Units)</label>
+                <Input
+                  type="number"
+                  value={requestedQty}
+                  onChange={(e) => setRequestedQty(Number(e.target.value))}
+                  min={10}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Indent Priority</label>
+                <select
+                  value={requestPriority}
+                  onChange={(e) => setRequestPriority(e.target.value)}
+                  className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg outline-none font-medium"
+                >
+                  <option value="ROUTINE">Routine Replenishment</option>
+                  <option value="URGENT">Urgent (Buffer Breached)</option>
+                  <option value="EMERGENCY">Emergency (Stockout Imminent)</option>
+                </select>
+              </div>
+            </div>
 
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Indent Urgency</label>
-            <select
-              value={requestPriority}
-              onChange={(e) => setRequestPriority(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg p-2.5 text-sm"
-            >
-              <option value="ROUTINE">ROUTINE (Standard monthly replenishment)</option>
-              <option value="URGENT">URGENT (Stockout impending within 7 days)</option>
-              <option value="EMERGENCY">EMERGENCY (Immediate critical stockout)</option>
-            </select>
-          </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Justification / Reason</label>
+              <Input
+                type="text"
+                value={requestJustification}
+                onChange={(e) => setRequestJustification(e.target.value)}
+                placeholder="High OPD consumption due to seasonal viral fever surge"
+                required
+              />
+            </div>
 
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Clinical Justification</label>
-            <textarea
-              value={requestJustification}
-              onChange={(e) => setRequestJustification(e.target.value)}
-              placeholder="e.g. Higher monsoon fever surge, stock depleted faster than historical run-rate"
-              className="w-full border border-gray-300 rounded-lg p-2.5 text-sm h-20"
-              required
-            />
-          </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" size="sm" onClick={() => setIsSupplyRequestModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" size="sm" disabled={isSubmitting}>
+                {isSubmitting ? 'Transmitting Indent...' : 'Transmit Requisition'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-          <div className="flex justify-end gap-2 pt-3 border-t">
-            <button
-              type="button"
-              onClick={() => setIsSupplyRequestModalOpen(false)}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold"
-            >
-              {isSubmitting ? 'Raising Indent...' : 'Transmit to District Warehouse'}
-            </button>
-          </div>
-        </form>
-      </Modal>
+      {/* Modal: Receive Stock GRN */}
+      <Dialog open={isReceiveModalOpen} onOpenChange={setIsReceiveModalOpen} maxWidth="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Log Goods Receipt Note (GRN)</DialogTitle>
+          <DialogDescription>Credit received physical shipment into facility inventory balance.</DialogDescription>
+          <DialogClose onClose={() => setIsReceiveModalOpen(false)} />
+        </DialogHeader>
+        <DialogContent>
+          <form onSubmit={handleReceiveTransfer} className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Received Qty</label>
+                <Input
+                  type="number"
+                  value={receivedQty}
+                  onChange={(e) => setReceivedQty(Number(e.target.value))}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Damaged Qty</label>
+                <Input
+                  type="number"
+                  value={damagedQty}
+                  onChange={(e) => setDamagedQty(Number(e.target.value))}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Batch Number</label>
+                <Input
+                  type="text"
+                  value={receiptBatchNo}
+                  onChange={(e) => setReceiptBatchNo(e.target.value)}
+                  placeholder="BAT-2026-X"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Expiry Date</label>
+                <Input
+                  type="date"
+                  value={receiptExpiry}
+                  onChange={(e) => setReceiptExpiry(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" size="sm" onClick={() => setIsReceiveModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="emerald" size="sm" disabled={isSubmitting}>
+                {isSubmitting ? 'Logging GRN...' : 'Commit & Credit Stock'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

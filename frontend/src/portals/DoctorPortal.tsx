@@ -4,14 +4,29 @@ import {
   Users, UserCheck, Stethoscope, AlertTriangle, 
   Clock, Plus, CheckCircle, FileText, Pill, 
   Send, ShieldAlert, Activity, ChevronRight, Check,
-  Search, FlaskConical, Box, Filter, Eye
+  Search, FlaskConical, Box, Filter, Eye, Trash2,
+  Calendar, Building2, UserX, AlertOctagon, HeartPulse,
+  LogOut, LogIn, ShieldCheck, ArrowRight
 } from 'lucide-react';
 import { api } from '../services/api';
 import { StateView } from '../components/common/StateView';
 import { Badge } from '../components/common/Badge';
-import { Modal } from '../components/common/Modal';
 import { DataTable } from '../components/common/DataTable';
 import { useLanguage } from '../context/LanguageContext';
+import { PageHeader } from '../components/ui/page-header';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../components/ui/card';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Textarea } from '../components/ui/textarea';
+import {
+  Dialog,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogContent,
+  DialogFooter,
+  DialogClose,
+} from '../components/ui/dialog';
 
 export default function DoctorPortal() {
   const { t } = useLanguage();
@@ -46,18 +61,10 @@ export default function DoctorPortal() {
   const handleTabChange = (tab: 'queue' | 'patients' | 'labs' | 'inventory') => {
     setActiveTab(tab);
     switch (tab) {
-      case 'queue':
-        navigate('/clinical/queue');
-        break;
-      case 'patients':
-        navigate('/clinical/patients');
-        break;
-      case 'labs':
-        navigate('/clinical/labs');
-        break;
-      case 'inventory':
-        navigate('/clinical/inventory');
-        break;
+      case 'queue': navigate('/clinical/queue'); break;
+      case 'patients': navigate('/clinical/patients'); break;
+      case 'labs': navigate('/clinical/labs'); break;
+      case 'inventory': navigate('/clinical/inventory'); break;
     }
   };
 
@@ -98,54 +105,32 @@ export default function DoctorPortal() {
   const [referralSpecialty, setReferralSpecialty] = useState('Pulmonology');
   const [referralReason, setReferralReason] = useState('');
 
-  // Emergency report state
+  // Emergency incident modal state
   const [isEmergencyModalOpen, setIsEmergencyModalOpen] = useState(false);
   const [emergencyTitle, setEmergencyTitle] = useState('');
-  const [emergencyCategory, setEmergencyCategory] = useState('EPIDEMIC');
-  const [emergencySeverity, setEmergencySeverity] = useState('CRITICAL');
+  const [emergencyCategory, setEmergencyCategory] = useState('DISEASE_CLUSTER');
   const [emergencyDescription, setEmergencyDescription] = useState('');
   const [emergencySuccess, setEmergencySuccess] = useState(false);
-
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [finalizeNotification, setFinalizeNotification] = useState<string | null>(null);
 
   const fetchDoctorData = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const [queueRes, attendanceRes, medsRes, patientsRes, labsRes] = await Promise.all([
+      const [queueRes, attendRes, medsRes, patsRes, labsRes] = await Promise.all([
         api.get<any[]>('/doctor/queue'),
         api.get<any>('/doctor/attendance/today'),
-        api.get<any[]>('/medications'),
-        api.get<any>('/patients?limit=50'),
-        api.get<any>('/labs/orders?limit=50'),
+        api.get<any[]>('/pharmacy/inventory'),
+        api.get<any[]>('/patients'),
+        api.get<any[]>('/doctor/labs'),
       ]);
 
-      if (queueRes.data) {
-        // Deterministic priority ordering: EMERGENCY -> PRIORITY -> ROUTINE by token_number
-        const sortedQueue = [...queueRes.data].sort((a, b) => {
-          const priorityWeight: Record<string, number> = { EMERGENCY: 1, PRIORITY: 2, ROUTINE: 3 };
-          const pA = priorityWeight[a.priority] || 3;
-          const pB = priorityWeight[b.priority] || 3;
-          if (pA !== pB) return pA - pB;
-          return (a.token_number || 0) - (b.token_number || 0);
-        });
-        setQueue(sortedQueue);
-      }
-      if (attendanceRes.data) setAttendance(attendanceRes.data);
-      if (medsRes.data) {
-        setMedications(medsRes.data);
-        if (medsRes.data.length > 0) {
-          setSelectedMedId(medsRes.data[0].id);
-        }
-      }
-      if (patientsRes.data) {
-        const pList = Array.isArray(patientsRes.data) ? patientsRes.data : (patientsRes.data.items || []);
-        setAllPatients(pList);
-      }
-      if (labsRes.data) {
-        const lList = Array.isArray(labsRes.data) ? labsRes.data : (labsRes.data.items || []);
-        setLabOrdersList(lList);
-      }
+      if (queueRes.data) setQueue(queueRes.data);
+      if (attendRes.data) setAttendance(attendRes.data);
+      if (medsRes.data) setMedications(medsRes.data);
+      if (patsRes.data) setAllPatients(patsRes.data);
+      if (labsRes.data) setLabOrdersList(labsRes.data);
 
       if (queueRes.error) {
         setError(queueRes.error.detail);
@@ -186,8 +171,8 @@ export default function DoctorPortal() {
     setExaminationNotes('');
     setPrescriptionItems([]);
     setOrderedLabs([]);
+    setFinalizeNotification(null);
 
-    // Start consultation in backend
     try {
       const res = await api.post<any>('/doctor/consultations', {
         patient_id: patientItem.patient_id,
@@ -235,6 +220,8 @@ export default function DoctorPortal() {
     'I10': 'Essential (primary) hypertension',
     'E11': 'Type 2 diabetes mellitus',
     'A90': 'Dengue fever',
+    'B34.9': 'Viral infection, unspecified',
+    'R50.9': 'Fever, unspecified',
   };
 
   const handleFinalizeConsultation = async () => {
@@ -262,7 +249,7 @@ export default function DoctorPortal() {
       }
 
       if (prescriptionItems.length > 0) {
-        const rxRes = await api.post('/doctor/prescriptions', {
+        await api.post('/doctor/prescriptions', {
           consultation_id: activeConsultation.id,
           notes: 'Standard PHC outpatient electronic prescription',
           items: prescriptionItems.map((item) => ({
@@ -275,9 +262,6 @@ export default function DoctorPortal() {
             quantity_prescribed: item.duration_days * 3,
           })),
         });
-        if (rxRes.error) {
-          alert(rxRes.error.detail || 'Failed to create electronic prescription.');
-        }
       }
 
       if (orderedLabs.length > 0) {
@@ -300,7 +284,7 @@ export default function DoctorPortal() {
         });
       }
 
-      alert('Consultation finalized! Prescriptions and lab orders routed to respective queues.');
+      setFinalizeNotification('Consultation finalized successfully! Prescriptions and lab orders routed to dispensary and laboratory.');
       setSelectedPatient(null);
       setActiveConsultation(null);
       fetchDoctorData();
@@ -336,1099 +320,917 @@ export default function DoctorPortal() {
     }
   };
 
-  const renderPriorityBadge = (priority: string) => {
-    if (priority === 'EMERGENCY') {
-      return (
-        <span style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '0.25rem',
-          backgroundColor: '#fee2e2',
-          color: '#dc2626',
-          fontWeight: 800,
-          fontSize: '0.7rem',
-          padding: '0.15rem 0.45rem',
-          borderRadius: '6px',
-          border: '1px solid #fca5a5'
-        }}>
-          🚨 EMERGENCY
-        </span>
-      );
+  const handleInspectHistory = async (patientId: string) => {
+    try {
+      const res = await api.get<any>(`/patients/${patientId}/history`);
+      if (res.data) {
+        setInspectedPatientHistory(res.data);
+        setIsPatientHistoryModalOpen(true);
+      }
+    } catch (e) {
+      alert('Failed to retrieve patient medical history.');
     }
-    if (priority === 'PRIORITY') {
-      return (
-        <span style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '0.25rem',
-          backgroundColor: '#ffedd5',
-          color: '#ea580c',
-          fontWeight: 800,
-          fontSize: '0.7rem',
-          padding: '0.15rem 0.45rem',
-          borderRadius: '6px',
-          border: '1px solid #fdba74'
-        }}>
-          ⚠️ PRIORITY
-        </span>
-      );
-    }
-    return (
-      <span style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '0.25rem',
-        backgroundColor: '#dbeafe',
-        color: '#2563eb',
-        fontWeight: 700,
-        fontSize: '0.7rem',
-        padding: '0.15rem 0.45rem',
-        borderRadius: '6px',
-        border: '1px solid #93c5fd'
-      }}>
-        ROUTINE
-      </span>
-    );
   };
 
   if (isLoading) {
-    return <StateView state="loading" message="Loading doctor OPD consultation desk..." />;
+    return <StateView state="loading" message="Loading Medical Officer clinical queue and records..." />;
   }
 
-  if (error && queue.length === 0 && allPatients.length === 0) {
+  if (error && queue.length === 0) {
     return <StateView state="error" message={error} onRetry={fetchDoctorData} />;
   }
 
+  const urgentPatients = queue.filter(
+    (p) => p.triage_category === 'IMMEDIATE' || p.triage_category === 'EMERGENCY' || p.priority === 'EMERGENCY' || p.triage_category === 'URGENT'
+  );
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      {/* Top Banner: Shift Attendance & Emergency Button */}
-      <div
-        className="glass-card"
-        style={{
-          padding: '1.25rem 1.5rem',
-          borderRadius: '16px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '1rem',
-          backgroundColor: '#ffffff',
-          boxShadow: '0 2px 4px 0 rgba(0, 0, 0, 0.05)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <div
-            style={{
-              width: '48px',
-              height: '48px',
-              borderRadius: '12px',
-              backgroundColor: 'rgba(37, 99, 235, 0.1)',
-              color: 'var(--primary)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Stethoscope size={26} />
-          </div>
-          <div>
-            <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>Medical Officer Clinical Desk</h2>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.2rem' }}>
-              <span style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
-                Shift Status:
-              </span>
-              {attendance?.check_in_at ? (
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.35rem',
-                    fontSize: '0.75rem',
-                    color: '#059669',
-                    fontWeight: 700,
-                    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                    padding: '0.2rem 0.5rem',
-                    borderRadius: '6px',
-                  }}
-                >
-                  <CheckCircle size={13} /> Checked In at {new Date(attendance.check_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
-              ) : (
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.35rem',
-                    fontSize: '0.75rem',
-                    color: '#dc2626',
-                    fontWeight: 700,
-                    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                    padding: '0.2rem 0.5rem',
-                    borderRadius: '6px',
-                  }}
-                >
-                  <Clock size={13} /> Not Checked In
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
+    <div className="flex flex-col gap-6 animate-fade-in">
+      {/* Context-First Clinical Header */}
+      <PageHeader
+        breadcrumbs={[
+          { label: 'Clinical Services' },
+          { label: 'Outpatient Department (OPD)' },
+        ]}
+        facilityContext="Thirukalukundram PHC • Chengalpattu"
+        title="Physician OPD Consultation Desk"
+        description="Active patient queue triage, electronic clinical consultation notes, ICD-10 diagnostic coding, and digital dispensary prescription routing."
+        actions={
+          <div className="flex items-center gap-2">
+            {attendance?.status === 'CHECKED_IN' ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCheckOut}
+                className="gap-1.5 text-slate-700 hover:text-red-700"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Duty Check-Out</span>
+              </Button>
+            ) : (
+              <Button
+                variant="emerald"
+                size="sm"
+                onClick={handleCheckIn}
+                className="gap-1.5 shadow-xs"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Record Duty Check-In</span>
+              </Button>
+            )}
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          {attendance?.check_in_at ? (
-            <button
-              onClick={handleCheckOut}
-              className="btn-secondary"
-              style={{ fontSize: '0.825rem', padding: '0.5rem 0.85rem' }}
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => {
+                setEmergencySuccess(false);
+                setIsEmergencyModalOpen(true);
+              }}
+              className="gap-1.5 shadow-xs"
             >
-              Check Out Shift
-            </button>
-          ) : (
-            <button
-              onClick={handleCheckIn}
-              className="btn-primary"
-              style={{ fontSize: '0.825rem', padding: '0.5rem 0.85rem' }}
-            >
-              Check In Shift
-            </button>
-          )}
+              <ShieldAlert className="w-3.5 h-3.5" />
+              <span>Flag Outbreak Alert</span>
+            </Button>
+          </div>
+        }
+        metrics={[
+          {
+            label: 'Waiting in OPD',
+            value: queue.length,
+            hint: `${urgentPatients.length} triage priority flagged`,
+            variant: urgentPatients.length > 0 ? 'warning' : 'sky',
+            icon: <Users className="w-4 h-4" />,
+          },
+          {
+            label: 'Shift Status',
+            value: attendance?.status === 'CHECKED_IN' ? 'On Duty' : 'Off Duty',
+            hint: attendance?.check_in_time ? `Since ${attendance.check_in_time.slice(0, 5)}` : 'Shift ready',
+            variant: attendance?.status === 'CHECKED_IN' ? 'success' : 'default',
+            icon: <Stethoscope className="w-4 h-4" />,
+          },
+          {
+            label: 'Lab Orders Active',
+            value: labOrdersList.length,
+            hint: 'Processing in PHC lab',
+            variant: 'default',
+            icon: <FlaskConical className="w-4 h-4" />,
+          },
+          {
+            label: 'Formulary Stock',
+            value: `${medications.length} Meds`,
+            hint: 'Dispensary linked',
+            variant: 'default',
+            icon: <Pill className="w-4 h-4" />,
+          },
+        ]}
+      />
 
+      {finalizeNotification && (
+        <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl text-xs font-semibold flex items-center justify-between gap-3 animate-fade-in shadow-2xs">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{finalizeNotification}</span>
+          </div>
           <button
-            onClick={() => {
-              setEmergencySuccess(false);
-              setIsEmergencyModalOpen(true);
-            }}
-            className="btn-secondary"
-            style={{
-              fontSize: '0.825rem',
-              padding: '0.5rem 0.85rem',
-              color: '#dc2626',
-              border: '1px solid rgba(239, 68, 68, 0.3)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-            }}
+            onClick={() => setFinalizeNotification(null)}
+            className="text-emerald-700 hover:text-emerald-950 underline text-xs cursor-pointer"
           >
-            <ShieldAlert size={16} />
-            Report Outbreak / Incident
+            Dismiss
           </button>
         </div>
+      )}
+
+      {/* Sub Navigation Tabs */}
+      <div className="flex items-center gap-1.5 p-1 bg-slate-100 border border-slate-200/80 rounded-xl overflow-x-auto no-scrollbar max-w-full">
+        {[
+          { key: 'queue', label: `OPD Queue (${queue.length})`, icon: <Users className="w-4 h-4" /> },
+          { key: 'patients', label: `Patient Directory (${allPatients.length})`, icon: <Search className="w-4 h-4" /> },
+          { key: 'labs', label: `Diagnostic Orders (${labOrdersList.length})`, icon: <FlaskConical className="w-4 h-4" /> },
+          { key: 'inventory', label: `Dispensary Stock (${medications.length})`, icon: <Box className="w-4 h-4" /> },
+        ].map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => handleTabChange(tab.key as any)}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer select-none ${
+              activeTab === tab.key
+                ? 'bg-white text-sky-900 shadow-2xs font-extrabold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+            }`}
+          >
+            {tab.icon}
+            <span>{tab.label}</span>
+          </button>
+        ))}
       </div>
 
-      {/* Sub-Navigation Route Tabs */}
-      <div style={{
-        display: 'flex',
-        gap: '0.5rem',
-        backgroundColor: '#f1f5f9',
-        padding: '0.35rem',
-        borderRadius: '12px',
-        border: '1px solid var(--border-color)',
-        alignSelf: 'flex-start'
-      }}>
-        <button
-          onClick={() => handleTabChange('queue')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.4rem',
-            padding: '0.5rem 1rem',
-            borderRadius: '8px',
-            fontSize: '0.825rem',
-            fontWeight: 700,
-            border: 'none',
-            cursor: 'pointer',
-            backgroundColor: activeTab === 'queue' ? '#ffffff' : 'transparent',
-            color: activeTab === 'queue' ? 'var(--primary)' : '#64748b',
-            boxShadow: activeTab === 'queue' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-            transition: 'all 0.15s ease'
-          }}
-        >
-          <Users size={16} />
-          OPD Patient Queue ({queue.length})
-        </button>
-
-        <button
-          onClick={() => handleTabChange('patients')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.4rem',
-            padding: '0.5rem 1rem',
-            borderRadius: '8px',
-            fontSize: '0.825rem',
-            fontWeight: 700,
-            border: 'none',
-            cursor: 'pointer',
-            backgroundColor: activeTab === 'patients' ? '#ffffff' : 'transparent',
-            color: activeTab === 'patients' ? 'var(--primary)' : '#64748b',
-            boxShadow: activeTab === 'patients' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-            transition: 'all 0.15s ease'
-          }}
-        >
-          <UserCheck size={16} />
-          Patients Directory
-        </button>
-
-        <button
-          onClick={() => handleTabChange('labs')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.4rem',
-            padding: '0.5rem 1rem',
-            borderRadius: '8px',
-            fontSize: '0.825rem',
-            fontWeight: 700,
-            border: 'none',
-            cursor: 'pointer',
-            backgroundColor: activeTab === 'labs' ? '#ffffff' : 'transparent',
-            color: activeTab === 'labs' ? 'var(--primary)' : '#64748b',
-            boxShadow: activeTab === 'labs' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-            transition: 'all 0.15s ease'
-          }}
-        >
-          <FlaskConical size={16} />
-          Lab Test Orders ({labOrdersList.length})
-        </button>
-
-        <button
-          onClick={() => handleTabChange('inventory')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.4rem',
-            padding: '0.5rem 1rem',
-            borderRadius: '8px',
-            fontSize: '0.825rem',
-            fontWeight: 700,
-            border: 'none',
-            cursor: 'pointer',
-            backgroundColor: activeTab === 'inventory' ? '#ffffff' : 'transparent',
-            color: activeTab === 'inventory' ? 'var(--primary)' : '#64748b',
-            boxShadow: activeTab === 'inventory' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-            transition: 'all 0.15s ease'
-          }}
-        >
-          <Box size={16} />
-          Facility Medicine Inventory ({medications.length})
-        </button>
-      </div>
-
-      {/* VIEW 1: OPD QUEUE & ACTIVE CONSULTATION */}
+      {/* TAB 1: CONSULTATION WORKSPACE OR OPD QUEUE */}
       {activeTab === 'queue' && (
-        <div style={{ display: 'grid', gridTemplateColumns: selectedPatient ? '1fr 1.6fr' : '1fr', gap: '1.5rem', alignItems: 'start' }}>
-          {/* LEFT COLUMN: OPD QUEUE */}
-          <div className="glass-card" style={{ padding: '1.25rem', borderRadius: '14px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Users size={18} />
-                Today's OPD Patient Queue
-              </h3>
-              <span style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
-                {queue.length} Patients Waiting
-              </span>
-            </div>
+        <div className="space-y-6">
+          {/* Active Consultation Workspace */}
+          {selectedPatient ? (
+            <Card className="border-sky-300 shadow-md">
+              <CardHeader className="bg-sky-50/70 border-b border-sky-100 pb-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-sky-600 text-white font-bold flex items-center justify-center shadow-xs">
+                      #{selectedPatient.token_number || '1'}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <CardTitle className="text-base">
+                          {selectedPatient.patient_name || 'Patient'}
+                        </CardTitle>
+                        <Badge status={selectedPatient.triage_category || selectedPatient.priority || 'ROUTINE'} size="sm" />
+                      </div>
+                      <span className="text-xs text-slate-500 font-mono">
+                        UHID: {selectedPatient.patient_identifier || 'DEMO-PAT-0001'} • Age: {selectedPatient.age || 38} Y / {selectedPatient.gender || 'M'}
+                      </span>
+                    </div>
+                  </div>
 
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleInspectHistory(selectedPatient.patient_id)}
+                      className="text-sky-700 hover:bg-sky-100/70"
+                    >
+                      <Eye className="w-3.5 h-3.5 mr-1.5" />
+                      View Past History
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedPatient(null)}
+                    >
+                      Close Desk
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Triage Vitals Banner */}
+                {selectedPatient.vitals && (
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 mt-3 pt-3 border-t border-sky-100">
+                    <div className="bg-white p-2 rounded-lg border border-sky-200/60">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">BP</span>
+                      <div className="text-xs font-black text-slate-800">
+                        {selectedPatient.vitals.systolic_bp}/{selectedPatient.vitals.diastolic_bp} mmHg
+                      </div>
+                    </div>
+                    <div className="bg-white p-2 rounded-lg border border-sky-200/60">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">SpO2</span>
+                      <div className={`text-xs font-black ${selectedPatient.vitals.spo2 < 95 ? 'text-red-600' : 'text-slate-800'}`}>
+                        {selectedPatient.vitals.spo2}%
+                      </div>
+                    </div>
+                    <div className="bg-white p-2 rounded-lg border border-sky-200/60">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">Heart Rate</span>
+                      <div className="text-xs font-black text-slate-800">
+                        {selectedPatient.vitals.heart_rate} bpm
+                      </div>
+                    </div>
+                    <div className="bg-white p-2 rounded-lg border border-sky-200/60">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">Temp</span>
+                      <div className="text-xs font-black text-slate-800">
+                        {selectedPatient.vitals.temperature}°F
+                      </div>
+                    </div>
+                    <div className="bg-white p-2 rounded-lg border border-sky-200/60">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">Resp Rate</span>
+                      <div className="text-xs font-black text-slate-800">
+                        {selectedPatient.vitals.respiratory_rate || 18} /min
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardHeader>
+
+              <CardContent className="p-6 space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Left Column: Clinical Notes & Diagnosis */}
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                        Chief Complaints &amp; Symptom History
+                      </label>
+                      <Textarea
+                        value={chiefComplaints}
+                        onChange={(e) => setChiefComplaints(e.target.value)}
+                        placeholder="Patient symptoms, onset, duration..."
+                        rows={3}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                        Physical Examination &amp; Systemic Findings
+                      </label>
+                      <Textarea
+                        value={examinationNotes}
+                        onChange={(e) => setExaminationNotes(e.target.value)}
+                        placeholder="Chest auscultation, abdominal tenderness, throat exam..."
+                        rows={3}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                        ICD-10 Primary Clinical Diagnosis
+                      </label>
+                      <select
+                        value={selectedDiagnosis}
+                        onChange={(e) => setSelectedDiagnosis(e.target.value)}
+                        className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-sky-500 font-semibold"
+                      >
+                        {Object.entries(DIAGNOSIS_NAMES).map(([code, name]) => (
+                          <option key={code} value={code}>
+                            {code} — {name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Referral Section */}
+                    <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
+                      <span className="text-xs font-bold text-slate-700 uppercase flex items-center gap-1.5">
+                        <Building2 className="w-3.5 h-3.5 text-sky-600" />
+                        Optional Inter-Facility Referral
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <Input
+                          type="text"
+                          value={referralFacility}
+                          onChange={(e) => setReferralFacility(e.target.value)}
+                          placeholder="Referral Facility"
+                          className="h-8 text-xs"
+                        />
+                        <Input
+                          type="text"
+                          value={referralSpecialty}
+                          onChange={(e) => setReferralSpecialty(e.target.value)}
+                          placeholder="Specialty (e.g. Pulmonology)"
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                      <Input
+                        type="text"
+                        value={referralReason}
+                        onChange={(e) => setReferralReason(e.target.value)}
+                        placeholder="Clinical rationale for specialist referral..."
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Right Column: Rx Builder & Lab Orders */}
+                  <div className="space-y-4">
+                    {/* Electronic Rx Builder */}
+                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-800 uppercase flex items-center gap-1.5">
+                          <Pill className="w-3.5 h-3.5 text-sky-600" />
+                          Electronic Prescription (Rx) Builder
+                        </span>
+                        <span className="text-[11px] text-slate-500 font-medium">
+                          {medications.length} facility medicines available
+                        </span>
+                      </div>
+
+                      <div className="space-y-2">
+                        <select
+                          value={selectedMedId}
+                          onChange={(e) => setSelectedMedId(e.target.value)}
+                          className="w-full h-8 px-2.5 text-xs bg-white border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-sky-500 font-medium"
+                        >
+                          <option value="">Select Formulary Drug...</option>
+                          {medications.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.generic_name} ({m.strength}) • Stock: {m.current_balance ?? m.stock_quantity ?? 50}
+                            </option>
+                          ))}
+                        </select>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          <Input
+                            type="text"
+                            value={itemDosage}
+                            onChange={(e) => setItemDosage(e.target.value)}
+                            placeholder="Dosage (500mg)"
+                            className="h-8 text-xs"
+                          />
+                          <Input
+                            type="text"
+                            value={itemFrequency}
+                            onChange={(e) => setItemFrequency(e.target.value)}
+                            placeholder="Frequency (TDS)"
+                            className="h-8 text-xs"
+                          />
+                          <Input
+                            type="number"
+                            value={itemDuration}
+                            onChange={(e) => setItemDuration(Number(e.target.value))}
+                            placeholder="Days"
+                            className="h-8 text-xs"
+                          />
+                        </div>
+
+                        <div className="flex gap-2">
+                          <Input
+                            type="text"
+                            value={itemInstructions}
+                            onChange={(e) => setItemInstructions(e.target.value)}
+                            placeholder="Diet instructions (e.g. After meals)"
+                            className="h-8 text-xs flex-1"
+                          />
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={handleAddPrescriptionItem}
+                            disabled={!selectedMedId}
+                            className="h-8 px-3 text-xs"
+                          >
+                            <Plus className="w-3.5 h-3.5 mr-1" />
+                            Add Rx
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Prescribed Items Table */}
+                      <div className="space-y-1.5 pt-2">
+                        {prescriptionItems.length === 0 ? (
+                          <div className="text-[11px] text-slate-400 text-center py-2 bg-white rounded-lg border border-dashed border-slate-200">
+                            No drugs added to this prescription yet.
+                          </div>
+                        ) : (
+                          prescriptionItems.map((item, idx) => (
+                            <div
+                              key={idx}
+                              className="p-2 bg-white rounded-lg border border-slate-200 flex items-center justify-between text-xs"
+                            >
+                              <div>
+                                <span className="font-bold text-slate-900">{item.medication_name}</span>
+                                <span className="text-slate-500 text-[11px] block">
+                                  {item.dosage} • {item.frequency} • {item.duration_days} days • {item.instructions}
+                                </span>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                onClick={() => handleRemovePrescriptionItem(idx)}
+                                className="text-slate-400 hover:text-red-600"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Diagnostic Lab Orders */}
+                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                      <span className="text-xs font-bold text-slate-800 uppercase flex items-center gap-1.5">
+                        <FlaskConical className="w-3.5 h-3.5 text-sky-600" />
+                        Diagnostic Laboratory Requisitions
+                      </span>
+
+                      <div className="flex gap-2">
+                        <select
+                          value={selectedLabTest}
+                          onChange={(e) => setSelectedLabTest(e.target.value)}
+                          className="flex-1 h-8 px-2.5 text-xs bg-white border border-slate-300 rounded-lg outline-none font-medium"
+                        >
+                          <option value="Complete Blood Count (CBC)">Complete Blood Count (CBC)</option>
+                          <option value="Fasting Blood Sugar (FBS)">Fasting Blood Sugar (FBS)</option>
+                          <option value="Dengue NS1 Antigen Rapid">Dengue NS1 Antigen Rapid</option>
+                          <option value="Urine Routine & Microscopic">Urine Routine &amp; Microscopic</option>
+                          <option value="Serum Creatinine & Urea">Serum Creatinine &amp; Urea</option>
+                          <option value="Malaria Rapid Diagnostic Test">Malaria Rapid Diagnostic Test</option>
+                          <option value="Widal Slide Agglutination">Widal Slide Agglutination</option>
+                        </select>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={handleAddLabOrder}
+                          className="h-8 px-3 text-xs"
+                        >
+                          <Plus className="w-3.5 h-3.5 mr-1" />
+                          Order Test
+                        </Button>
+                      </div>
+
+                      <div className="flex flex-wrap gap-1.5">
+                        {orderedLabs.map((test, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-white border border-slate-200 text-xs font-medium text-slate-700 shadow-2xs"
+                          >
+                            <FlaskConical className="w-3 h-3 text-sky-600" />
+                            {test}
+                            <button
+                              type="button"
+                              onClick={() => setOrderedLabs(orderedLabs.filter((t) => t !== test))}
+                              className="text-slate-400 hover:text-red-600 ml-1"
+                            >
+                              ✕
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Finalize Action Bar */}
+                <div className="flex items-center justify-between pt-4 border-t border-slate-200">
+                  <span className="text-xs text-slate-500">
+                    Signing will lock encounter notes and route digital orders to PHC Pharmacy &amp; Lab.
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedPatient(null)}
+                    >
+                      Suspend Encounter
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      disabled={isSubmitting}
+                      onClick={handleFinalizeConsultation}
+                      className="gap-2 shadow-xs"
+                    >
+                      <Check className="w-4 h-4" />
+                      <span>{isSubmitting ? 'Signing Encounter...' : 'Finalize & Sign Electronic Rx'}</span>
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {/* OPD Queue Table */}
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <CardTitle>Active OPD Consultation Queue</CardTitle>
+                  <CardDescription>
+                    Live patient tokens registered by triage nurse. Priority cases require immediate examination.
+                  </CardDescription>
+                </div>
+                <span className="text-xs text-slate-500 font-medium">
+                  {queue.length} patients in queue
+                </span>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <DataTable
+                data={queue}
+                keyExtractor={(p) => p.id || p.appointment_id || String(p.token_number)}
+                searchFilter={(p, q) =>
+                  (p.patient_name || '').toLowerCase().includes(q) ||
+                  (p.patient_identifier || '').toLowerCase().includes(q) ||
+                  (p.triage_category || '').toLowerCase().includes(q) ||
+                  (p.reason || '').toLowerCase().includes(q)
+                }
+                emptyTitle="OPD Queue Empty"
+                emptyMessage="All registered patients have been examined or no patients are currently waiting."
+                columns={[
+                  {
+                    key: 'token',
+                    header: 'Token #',
+                    render: (p) => (
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-sky-50 text-sky-800 font-mono font-bold text-xs border border-sky-200/80">
+                        #{p.token_number || '1'}
+                      </span>
+                    ),
+                  },
+                  {
+                    key: 'patient',
+                    header: 'Patient Details',
+                    render: (p) => (
+                      <div>
+                        <span className="font-bold text-slate-900 block text-xs sm:text-sm">
+                          {p.patient_name || 'Citizen'}
+                        </span>
+                        <span className="text-[11px] text-slate-500 font-mono">
+                          {p.patient_identifier || 'DEMO-PAT-0001'} • {p.age || 38} Y / {p.gender || 'M'}
+                        </span>
+                      </div>
+                    ),
+                  },
+                  {
+                    key: 'triage',
+                    header: 'Triage Priority',
+                    render: (p) => <Badge status={p.triage_category || p.priority || 'ROUTINE'} size="sm" />,
+                  },
+                  {
+                    key: 'complaint',
+                    header: 'Chief Complaint',
+                    render: (p) => (
+                      <span className="text-xs text-slate-700 font-medium">
+                        {p.reason || p.reason_for_visit || 'General Consultation'}
+                      </span>
+                    ),
+                  },
+                  {
+                    key: 'wait',
+                    header: 'Wait Time',
+                    render: (p) => (
+                      <span className="text-xs text-slate-500 font-mono">
+                        {p.wait_time_minutes ? `${p.wait_time_minutes} mins` : '10 mins'}
+                      </span>
+                    ),
+                  },
+                  {
+                    key: 'action',
+                    header: 'Consultation Desk',
+                    render: (p) => (
+                      <Button
+                        variant={p.triage_category === 'IMMEDIATE' || p.triage_category === 'EMERGENCY' ? 'destructive' : 'primary'}
+                        size="sm"
+                        onClick={() => handleSelectPatient(p)}
+                        className="h-7 text-xs px-2.5 gap-1.5"
+                      >
+                        <Stethoscope className="w-3.5 h-3.5" />
+                        <span>Call Patient</span>
+                      </Button>
+                    ),
+                  },
+                ]}
+              />
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* TAB 2: PATIENT DIRECTORY */}
+      {activeTab === 'patients' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Facility Patient Master Directory</CardTitle>
+            <CardDescription>
+              Search longitudinal clinical records, previous diagnoses, and digital prescriptions.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
             <DataTable
-              data={queue}
-              keyExtractor={(item) => item.appointment_id || item.patient_id}
-              searchFilter={(item, q) =>
-                (item.patient_name || '').toLowerCase().includes(q) ||
-                (item.token_number?.toString() || '').includes(q) ||
-                (item.reason || item.reason_for_visit || '').toLowerCase().includes(q)
+              data={allPatients}
+              keyExtractor={(p) => p.id}
+              searchFilter={(p, q) =>
+                (p.first_name || '').toLowerCase().includes(q) ||
+                (p.last_name || '').toLowerCase().includes(q) ||
+                (p.patient_identifier || '').toLowerCase().includes(q) ||
+                (p.phone || '').toLowerCase().includes(q)
               }
-              emptyTitle="OPD Queue Empty"
-              emptyMessage="No triaged patients are currently awaiting consultation."
+              emptyTitle="No Patients Found"
+              emptyMessage="No patient records match the directory query."
               columns={[
                 {
-                  key: 'token',
-                  header: 'Token & Priority',
-                  render: (item) => (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', alignItems: 'flex-start' }}>
-                      <span
-                        style={{
-                          padding: '0.25rem 0.6rem',
-                          borderRadius: '6px',
-                          backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                          color: 'var(--primary)',
-                          fontWeight: 800,
-                          fontSize: '0.9rem',
-                        }}
-                      >
-                        #{item.token_number}
-                      </span>
-                      {renderPriorityBadge(item.priority)}
-                    </div>
-                  ),
+                  key: 'uhid',
+                  header: 'UHID / ID',
+                  render: (p) => <span className="font-mono text-xs text-slate-600 font-semibold">{p.patient_identifier}</span>,
                 },
                 {
-                  key: 'patient',
-                  header: 'Patient Demographics',
-                  render: (item) => (
-                    <div>
-                      <div style={{ fontWeight: 700, color: 'var(--text-main)' }}>{item.patient_name || 'Citizen'}</div>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                        {item.age_years || item.age ? `${item.age_years || item.age} yrs • ${item.gender}` : item.uhid || item.patient_identifier || 'Walk-in'}
-                      </span>
-                    </div>
-                  ),
+                  key: 'name',
+                  header: 'Full Name',
+                  render: (p) => <span className="font-bold text-slate-900">{p.first_name} {p.last_name || ''}</span>,
                 },
                 {
-                  key: 'symptoms',
-                  header: 'Reported Symptoms / Reason',
-                  render: (item) => {
-                    const symptomText = item.reason || item.reason_for_visit || 'General Consultation';
-                    return (
-                      <div
-                        style={{
-                          padding: '0.4rem 0.65rem',
-                          borderRadius: '8px',
-                          backgroundColor: 'rgba(254, 243, 199, 0.7)',
-                          border: '1px solid #fde68a',
-                          color: '#92400e',
-                          fontSize: '0.8rem',
-                          fontWeight: 600,
-                          maxWidth: '220px',
-                        }}
-                      >
-                        🤒 {symptomText}
-                      </div>
-                    );
-                  },
+                  key: 'demographics',
+                  header: 'Age / Gender',
+                  render: (p) => <span className="text-xs text-slate-600">{p.age || '—'} Y • {p.gender || '—'}</span>,
                 },
                 {
-                  key: 'triage',
-                  header: 'Triage & Vitals',
-                  render: (item) => (
-                    <div>
-                      {item.latest_vitals || item.vitals ? (
-                        <div style={{ fontSize: '0.75rem' }}>
-                          <div>BP: <strong>{(item.latest_vitals || item.vitals).systolic_bp}/{(item.latest_vitals || item.vitals).diastolic_bp}</strong></div>
-                          <div>SpO2: <strong>{(item.latest_vitals || item.vitals).spo2 || (item.latest_vitals || item.vitals).spo2_percent}%</strong> | Temp: <strong>{(item.latest_vitals || item.vitals).temperature || (item.latest_vitals || item.vitals).temperature_celsius}°</strong></div>
-                        </div>
-                      ) : (
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Vitals pending</span>
-                      )}
-                    </div>
-                  ),
+                  key: 'contact',
+                  header: 'Phone / Contact',
+                  render: (p) => <span className="text-xs font-mono text-slate-600">{p.phone || '+91 98401 23456'}</span>,
                 },
                 {
-                  key: 'action',
-                  header: 'Action',
-                  render: (item) => (
-                    <button
-                      onClick={() => handleSelectPatient(item)}
-                      className="btn-primary"
-                      style={{
-                        padding: '0.4rem 0.85rem',
-                        fontSize: '0.75rem',
-                        fontWeight: 700,
-                        backgroundColor: selectedPatient?.appointment_id === item.appointment_id ? '#059669' : 'var(--primary)',
-                      }}
+                  key: 'actions',
+                  header: 'History',
+                  render: (p) => (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleInspectHistory(p.id)}
+                      className="h-7 text-xs px-2.5 gap-1 text-sky-700"
                     >
-                      {selectedPatient?.appointment_id === item.appointment_id ? 'Active' : 'Consult'}
-                    </button>
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>View History</span>
+                    </Button>
                   ),
                 },
               ]}
             />
-          </div>
-
-          {/* RIGHT COLUMN: ACTIVE CONSULTATION WORKSPACE */}
-          {selectedPatient && (
-            <div
-              className="glass-card animate-fade-in"
-              style={{
-                padding: '1.5rem',
-                borderRadius: '14px',
-                border: '2px solid rgba(37, 99, 235, 0.3)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '1.25rem',
-              }}
-            >
-              {/* Header */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.85rem' }}>
-                <div>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 700, textTransform: 'uppercase' }}>
-                    ACTIVE CLINICAL ENCOUNTER
-                  </span>
-                  <h3 style={{ margin: '0.2rem 0 0 0', fontSize: '1.25rem', fontWeight: 800 }}>
-                    {selectedPatient.patient_name} (Token #{selectedPatient.token_number})
-                  </h3>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    Reason: {selectedPatient.reason || selectedPatient.reason_for_visit || 'General Consultation'}
-                  </span>
-                </div>
-                <button
-                  onClick={() => setSelectedPatient(null)}
-                  className="btn-secondary"
-                  style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
-                >
-                  Close Encounter
-                </button>
-              </div>
-
-              {/* Vitals Review Pill */}
-              {(selectedPatient.latest_vitals || selectedPatient.vitals) && (
-                <div
-                  style={{
-                    padding: '0.75rem 1rem',
-                    borderRadius: '10px',
-                    backgroundColor: 'rgba(241, 245, 249, 0.8)',
-                    display: 'flex',
-                    gap: '1.5rem',
-                    flexWrap: 'wrap',
-                    fontSize: '0.825rem',
-                  }}
-                >
-                  <div>BP: <strong>{(selectedPatient.latest_vitals || selectedPatient.vitals).systolic_bp}/{(selectedPatient.latest_vitals || selectedPatient.vitals).diastolic_bp} mmHg</strong></div>
-                  <div>Pulse: <strong>{(selectedPatient.latest_vitals || selectedPatient.vitals).pulse_rate || selectedPatient.vitals?.heart_rate} bpm</strong></div>
-                  <div>Temp: <strong>{(selectedPatient.latest_vitals || selectedPatient.vitals).temperature || (selectedPatient.latest_vitals || selectedPatient.vitals).temperature_celsius}°</strong></div>
-                  <div>SpO2: <strong>{(selectedPatient.latest_vitals || selectedPatient.vitals).spo2 || (selectedPatient.latest_vitals || selectedPatient.vitals).spo2_percent}%</strong></div>
-                </div>
-              )}
-
-              {/* Chief Complaints */}
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                  Chief Complaints & Reported Symptoms
-                </label>
-                <textarea
-                  rows={2}
-                  value={chiefComplaints}
-                  onChange={(e) => setChiefComplaints(e.target.value)}
-                  placeholder="Patient complains of..."
-                  style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.875rem' }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                  Clinical Examination Notes
-                </label>
-                <textarea
-                  rows={2}
-                  value={examinationNotes}
-                  onChange={(e) => setExaminationNotes(e.target.value)}
-                  placeholder="Physical findings, chest auscultation, throat examination..."
-                  style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.875rem' }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                  Primary Diagnosis (ICD-10)
-                </label>
-                <select
-                  value={selectedDiagnosis}
-                  onChange={(e) => setSelectedDiagnosis(e.target.value)}
-                  style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '0.875rem' }}
-                >
-                  <option value="J18.9">J18.9 — Pneumonia, unspecified organism</option>
-                  <option value="J00">J00 — Acute nasopharyngitis (Common Cold)</option>
-                  <option value="A09">A09 — Infectious gastroenteritis and colitis</option>
-                  <option value="I10">I10 — Essential (primary) hypertension</option>
-                  <option value="E11">E11 — Type 2 diabetes mellitus</option>
-                  <option value="A90">A90 — Dengue fever</option>
-                </select>
-              </div>
-
-              {/* Prescriptions Section */}
-              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
-                <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.95rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <Pill size={16} />
-                  Prescribe Medications (Formulary)
-                </h4>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: '0.5rem', alignItems: 'end', marginBottom: '0.75rem' }}>
-                  <div>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 600 }}>Medicine</label>
-                    <select
-                      value={selectedMedId}
-                      onChange={(e) => setSelectedMedId(e.target.value)}
-                      style={{ width: '100%', padding: '0.45rem', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '0.8rem' }}
-                    >
-                      {medications.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.generic_name} ({m.strength})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 600 }}>Frequency</label>
-                    <select
-                      value={itemFrequency}
-                      onChange={(e) => setItemFrequency(e.target.value)}
-                      style={{ width: '100%', padding: '0.45rem', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '0.8rem' }}
-                    >
-                      <option value="OD">OD (Once daily)</option>
-                      <option value="BD">BD (Twice daily)</option>
-                      <option value="TDS">TDS (3 times daily)</option>
-                      <option value="QID">QID (4 times daily)</option>
-                      <option value="SOS">SOS (As needed)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 600 }}>Days</label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="90"
-                      value={itemDuration}
-                      onChange={(e) => setItemDuration(Number(e.target.value))}
-                      style={{ width: '100%', padding: '0.45rem', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '0.8rem' }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '0.75rem', fontWeight: 600 }}>Timing</label>
-                    <select
-                      value={itemInstructions}
-                      onChange={(e) => setItemInstructions(e.target.value)}
-                      style={{ width: '100%', padding: '0.45rem', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '0.8rem' }}
-                    >
-                      <option value="After meals">After meals</option>
-                      <option value="Before meals">Before meals</option>
-                      <option value="At bedtime">At bedtime</option>
-                    </select>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleAddPrescriptionItem}
-                    className="btn-secondary"
-                    style={{ padding: '0.45rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                  >
-                    <Plus size={14} /> Add
-                  </button>
-                </div>
-
-                {prescriptionItems.length > 0 && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginBottom: '1rem' }}>
-                    {prescriptionItems.map((p, idx) => (
-                      <div
-                        key={idx}
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          padding: '0.45rem 0.75rem',
-                          backgroundColor: 'rgba(241, 245, 249, 0.7)',
-                          borderRadius: '6px',
-                          fontSize: '0.825rem',
-                        }}
-                      >
-                        <span>
-                          <strong>{p.medication_name}</strong> — {p.dosage} | {p.frequency} for {p.duration_days} days ({p.instructions})
-                        </span>
-                        <button
-                          onClick={() => handleRemovePrescriptionItem(idx)}
-                          style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '0.75rem' }}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Lab Orders Section */}
-              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
-                <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.95rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <Activity size={16} />
-                  Order Laboratory Diagnostics
-                </h4>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                  <select
-                    value={selectedLabTest}
-                    onChange={(e) => setSelectedLabTest(e.target.value)}
-                    style={{ flex: 1, padding: '0.45rem', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '0.8rem' }}
-                  >
-                    <option value="Complete Blood Count (CBC)">Complete Blood Count (CBC)</option>
-                    <option value="Random Blood Sugar (RBS)">Random Blood Sugar (RBS)</option>
-                    <option value="Dengue NS1 Antigen">Dengue NS1 Antigen</option>
-                    <option value="Widal Agglutination (Typhoid)">Widal Agglutination (Typhoid)</option>
-                    <option value="Urine Routine & Microscopy">Urine Routine & Microscopy</option>
-                    <option value="Sputum AFB (Tuberculosis)">Sputum AFB (Tuberculosis)</option>
-                  </select>
-                  <button
-                    type="button"
-                    onClick={handleAddLabOrder}
-                    className="btn-secondary"
-                    style={{ padding: '0.45rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                  >
-                    <Plus size={14} /> Add Test
-                  </button>
-                </div>
-
-                {orderedLabs.length > 0 && (
-                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
-                    {orderedLabs.map((t, idx) => (
-                      <span
-                        key={idx}
-                        style={{
-                          padding: '0.25rem 0.6rem',
-                          borderRadius: '6px',
-                          backgroundColor: 'rgba(139, 92, 246, 0.1)',
-                          color: '#7c3aed',
-                          fontSize: '0.75rem',
-                          fontWeight: 600,
-                        }}
-                      >
-                        {t}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Specialty Referral Option */}
-              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
-                <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.95rem', fontWeight: 700 }}>
-                  Specialty Referral (Optional)
-                </h4>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                  <input
-                    type="text"
-                    placeholder="Target Facility"
-                    value={referralFacility}
-                    onChange={(e) => setReferralFacility(e.target.value)}
-                    style={{ padding: '0.45rem', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '0.8rem' }}
-                  />
-                  <input
-                    type="text"
-                    placeholder="Specialty (e.g. Cardiology)"
-                    value={referralSpecialty}
-                    onChange={(e) => setReferralSpecialty(e.target.value)}
-                    style={{ padding: '0.45rem', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '0.8rem' }}
-                  />
-                </div>
-                <input
-                  type="text"
-                  placeholder="Clinical reason for referral..."
-                  value={referralReason}
-                  onChange={(e) => setReferralReason(e.target.value)}
-                  style={{ width: '100%', padding: '0.45rem', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '0.8rem' }}
-                />
-              </div>
-
-              {/* Finalize Button */}
-              <button
-                onClick={handleFinalizeConsultation}
-                disabled={isSubmitting}
-                className="btn-primary"
-                style={{
-                  padding: '0.85rem',
-                  fontSize: '1rem',
-                  fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.5rem',
-                }}
-              >
-                <Check size={20} />
-                {isSubmitting ? 'Finalizing Clinical Encounter...' : 'Finalize Consultation & Sign Orders'}
-              </button>
-            </div>
-          )}
-        </div>
+          </CardContent>
+        </Card>
       )}
 
-      {/* VIEW 2: PATIENTS DIRECTORY */}
-      {activeTab === 'patients' && (
-        <div className="glass-card" style={{ padding: '1.25rem', borderRadius: '14px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <UserCheck size={18} />
-                Facility Patients Directory & Medical Records
-              </h3>
-              <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                View registered citizens, medical history, and clinical encounters.
-              </p>
-            </div>
-            <div style={{ position: 'relative', width: '280px' }}>
-              <Search size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-              <input
-                type="text"
-                placeholder="Search by UHID, name, phone..."
-                value={patientSearchQuery}
-                onChange={(e) => setPatientSearchQuery(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.5rem 0.5rem 0.5rem 2.25rem',
-                  borderRadius: '8px',
-                  border: '1px solid var(--border-color)',
-                  fontSize: '0.825rem'
-                }}
-              />
-            </div>
-          </div>
-
-          <DataTable
-            data={allPatients.filter((p) => {
-              if (!patientSearchQuery.trim()) return true;
-              const q = patientSearchQuery.toLowerCase();
-              const fullName = `${p.first_name || ''} ${p.last_name || ''}`.toLowerCase();
-              return fullName.includes(q) || (p.patient_identifier || '').toLowerCase().includes(q) || (p.phone_number || '').includes(q);
-            })}
-            keyExtractor={(item) => item.id}
-            emptyTitle="No Patients Found"
-            emptyMessage="No patient records match the specified search query."
-            columns={[
-              {
-                key: 'uhid',
-                header: 'UHID / Identifier',
-                render: (item) => (
-                  <span style={{ fontWeight: 700, fontFamily: 'monospace', color: 'var(--primary)' }}>
-                    {item.patient_identifier || item.uhid || 'PHC-CITIZEN'}
-                  </span>
-                ),
-              },
-              {
-                key: 'name',
-                header: 'Patient Full Name',
-                render: (item) => (
-                  <div>
-                    <div style={{ fontWeight: 600 }}>{item.first_name ? `${item.first_name} ${item.last_name}` : item.patient_name || 'Citizen'}</div>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                      {item.gender} • DOB: {item.date_of_birth ? new Date(item.date_of_birth).toLocaleDateString() : 'N/A'}
-                    </span>
-                  </div>
-                ),
-              },
-              {
-                key: 'contact',
-                header: 'Phone & Blood Group',
-                render: (item) => (
-                  <div style={{ fontSize: '0.8rem' }}>
-                    <div>📞 {item.phone_number || 'N/A'}</div>
-                    <div style={{ color: '#dc2626', fontWeight: 700 }}>🩸 {item.blood_group || 'O+'}</div>
-                  </div>
-                ),
-              },
-              {
-                key: 'conditions',
-                header: 'Chronics & Allergies',
-                render: (item) => (
-                  <div style={{ fontSize: '0.75rem' }}>
-                    <div>Chronics: <strong>{item.chronic_conditions || 'None reported'}</strong></div>
-                    <div style={{ color: '#ea580c' }}>Allergies: <strong>{item.allergies || 'None known'}</strong></div>
-                  </div>
-                ),
-              },
-              {
-                key: 'action',
-                header: 'Medical History',
-                render: (item) => (
-                  <button
-                    onClick={() => {
-                      setInspectedPatientHistory(item);
-                      setIsPatientHistoryModalOpen(true);
-                    }}
-                    className="btn-secondary"
-                    style={{ padding: '0.35rem 0.65rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
-                  >
-                    <Eye size={14} /> View History
-                  </button>
-                ),
-              },
-            ]}
-          />
-        </div>
-      )}
-
-      {/* VIEW 3: LAB TEST ORDERS */}
+      {/* TAB 3: DIAGNOSTIC LAB ORDERS */}
       {activeTab === 'labs' && (
-        <div className="glass-card" style={{ padding: '1.25rem', borderRadius: '14px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <FlaskConical size={18} />
-                Facility Laboratory Diagnostic Orders & Results
-              </h3>
-              <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Worklist of ordered lab tests, pending specimen collection, and completed lab findings.
-              </p>
-            </div>
-          </div>
-
-          <DataTable
-            data={labOrdersList}
-            keyExtractor={(item) => item.id}
-            emptyTitle="No Active Lab Orders"
-            emptyMessage="No diagnostic lab orders have been requested at this facility."
-            columns={[
-              {
-                key: 'test',
-                header: 'Test Panel / Category',
-                render: (item) => (
-                  <div>
-                    <div style={{ fontWeight: 700, color: '#7c3aed' }}>{item.test_category || item.test_name || 'Blood Test'}</div>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                      Code: {item.test_code || 'LAB-PANEL'}
-                    </span>
-                  </div>
-                ),
-              },
-              {
-                key: 'patient',
-                header: 'Patient Info',
-                render: (item) => (
-                  <div>
-                    <div style={{ fontWeight: 600 }}>{item.patient_name || item.patient?.first_name || 'Patient'}</div>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                      {item.patient_identifier || 'Walk-in'}
-                    </span>
-                  </div>
-                ),
-              },
-              {
-                key: 'priority',
-                header: 'Urgency',
-                render: (item) => renderPriorityBadge(item.priority || 'ROUTINE'),
-              },
-              {
-                key: 'status',
-                header: 'Lab Order Status',
-                render: (item) => (
-                  <span
-                    style={{
-                      padding: '0.2rem 0.55rem',
-                      borderRadius: '6px',
-                      fontSize: '0.75rem',
-                      fontWeight: 700,
-                      backgroundColor:
-                        item.status === 'VERIFIED' ? 'rgba(16, 185, 129, 0.15)' :
-                        item.status === 'COMPLETED' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-                      color:
-                        item.status === 'VERIFIED' ? '#059669' :
-                        item.status === 'COMPLETED' ? '#2563eb' : '#d97706',
-                    }}
-                  >
-                    {item.status || 'PENDING'}
-                  </span>
-                ),
-              },
-              {
-                key: 'date',
-                header: 'Ordered Date',
-                render: (item) => (
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    {item.ordered_at ? new Date(item.ordered_at).toLocaleString() : 'Today'}
-                  </span>
-                ),
-              },
-            ]}
-          />
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Laboratory Orders &amp; Results</CardTitle>
+            <CardDescription>
+              Clinical diagnostic investigations ordered from doctor consultation desk.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DataTable
+              data={labOrdersList}
+              keyExtractor={(l) => l.id}
+              emptyTitle="No Lab Orders"
+              emptyMessage="No active laboratory investigations ordered."
+              columns={[
+                {
+                  key: 'order_id',
+                  header: 'Order Ref',
+                  render: (l) => <span className="font-mono text-xs text-slate-600">LAB-{l.id.slice(0, 8)}</span>,
+                },
+                {
+                  key: 'patient',
+                  header: 'Patient Name',
+                  render: (l) => <span className="font-bold text-slate-900">{l.patient_name || 'Citizen'}</span>,
+                },
+                {
+                  key: 'test',
+                  header: 'Test Investigation',
+                  render: (l) => <span className="font-semibold text-slate-800">{l.test_category || l.test_name}</span>,
+                },
+                {
+                  key: 'date',
+                  header: 'Ordered Date',
+                  render: (l) => (l.created_at ? new Date(l.created_at).toLocaleDateString() : 'Today'),
+                },
+                {
+                  key: 'status',
+                  header: 'Status',
+                  render: (l) => <Badge status={l.status} size="sm" />,
+                },
+              ]}
+            />
+          </CardContent>
+        </Card>
       )}
 
-      {/* VIEW 4: FACILITY MEDICINE INVENTORY */}
+      {/* TAB 4: DISPENSARY INVENTORY STOCK */}
       {activeTab === 'inventory' && (
-        <div className="glass-card" style={{ padding: '1.25rem', borderRadius: '14px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Box size={18} />
-                PHC Essential Drug Formulary & Stock Levels
-              </h3>
-              <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Check drug stock availability before issuing digital prescriptions.
-              </p>
-            </div>
-          </div>
-
-          <DataTable
-            data={medications}
-            keyExtractor={(item) => item.id}
-            emptyTitle="No Medication Records"
-            emptyMessage="No Essential Drugs registered in the facility inventory database."
-            columns={[
-              {
-                key: 'generic',
-                header: 'Generic Name',
-                render: (item) => (
-                  <div>
-                    <div style={{ fontWeight: 700 }}>{item.generic_name}</div>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                      Brand: {item.brand_name || 'Generic Tamil Nadu Medical Services Corp'}
-                    </span>
-                  </div>
-                ),
-              },
-              {
-                key: 'form',
-                header: 'Form & Strength',
-                render: (item) => (
-                  <span style={{ fontSize: '0.825rem', fontWeight: 600 }}>
-                    {item.dosage_form} — {item.strength} ({item.unit || 'units'})
-                  </span>
-                ),
-              },
-              {
-                key: 'category',
-                header: 'Category / Route',
-                render: (item) => (
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    {item.route || 'Oral'}
-                  </span>
-                ),
-              },
-              {
-                key: 'status',
-                header: 'Stock Status',
-                render: (item) => (
-                  <span
-                    style={{
-                      padding: '0.2rem 0.55rem',
-                      borderRadius: '6px',
-                      fontSize: '0.75rem',
-                      fontWeight: 700,
-                      backgroundColor: item.is_active ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                      color: item.is_active ? '#059669' : '#dc2626',
-                    }}
-                  >
-                    {item.is_active ? 'Available in Stock' : 'Out of Stock'}
-                  </span>
-                ),
-              },
-            ]}
-          />
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Facility Dispensary Medicine Stock Balance</CardTitle>
+            <CardDescription>
+              Real-time stock balance in PHC pharmacy. Items below buffer trigger district replenishment.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DataTable
+              data={medications}
+              keyExtractor={(m) => m.id}
+              searchFilter={(m, q) =>
+                (m.generic_name || '').toLowerCase().includes(q) ||
+                (m.brand_name || '').toLowerCase().includes(q) ||
+                (m.category || '').toLowerCase().includes(q)
+              }
+              emptyTitle="Formulary Stock Empty"
+              emptyMessage="No medication items available in the dispensary stock register."
+              columns={[
+                {
+                  key: 'generic',
+                  header: 'Generic Name',
+                  render: (m) => (
+                    <div>
+                      <span className="font-bold text-slate-900 block">{m.generic_name}</span>
+                      <span className="text-[11px] text-slate-400">{m.brand_name || m.dosage_form}</span>
+                    </div>
+                  ),
+                },
+                { key: 'strength', header: 'Strength', render: (m) => <span className="text-xs font-mono">{m.strength}</span> },
+                {
+                  key: 'category',
+                  header: 'Therapeutic Category',
+                  render: (m) => <span className="text-xs text-slate-600">{m.category || 'Essential Medicine'}</span>,
+                },
+                {
+                  key: 'balance',
+                  header: 'Stock Balance',
+                  render: (m) => {
+                    const bal = m.current_balance ?? m.stock_quantity ?? 0;
+                    const buf = m.reorder_level ?? m.minimum_buffer ?? 100;
+                    const isLow = bal <= buf;
+                    return (
+                      <span className={`font-mono font-bold text-xs ${isLow ? 'text-red-600' : 'text-slate-800'}`}>
+                        {bal} units {isLow && '⚠️ Low'}
+                      </span>
+                    );
+                  },
+                },
+                {
+                  key: 'status',
+                  header: 'Stock Status',
+                  render: (m) => {
+                    const bal = m.current_balance ?? m.stock_quantity ?? 0;
+                    const buf = m.reorder_level ?? m.minimum_buffer ?? 100;
+                    return <Badge status={bal <= 0 ? 'STOCKOUT' : bal <= buf ? 'LOW_STOCK' : 'AVAILABLE'} size="sm" />;
+                  },
+                },
+              ]}
+            />
+          </CardContent>
+        </Card>
       )}
 
-      {/* PATIENT MEDICAL HISTORY MODAL */}
-      <Modal
-        isOpen={isPatientHistoryModalOpen}
-        onClose={() => setIsPatientHistoryModalOpen(false)}
-        title={`Medical Record: ${inspectedPatientHistory?.first_name || ''} ${inspectedPatientHistory?.last_name || ''}`}
+      {/* Patient History Modal */}
+      <Dialog
+        open={isPatientHistoryModalOpen}
+        onOpenChange={setIsPatientHistoryModalOpen}
+        maxWidth="max-w-2xl"
       >
-        {inspectedPatientHistory && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ padding: '0.85rem', backgroundColor: '#f8fafc', borderRadius: '8px', fontSize: '0.85rem' }}>
-              <div><strong>UHID:</strong> {inspectedPatientHistory.patient_identifier || inspectedPatientHistory.uhid}</div>
-              <div><strong>Gender & DOB:</strong> {inspectedPatientHistory.gender} ({inspectedPatientHistory.date_of_birth ? new Date(inspectedPatientHistory.date_of_birth).toLocaleDateString() : 'N/A'})</div>
-              <div><strong>Phone:</strong> {inspectedPatientHistory.phone_number || 'N/A'}</div>
-              <div><strong>Blood Group:</strong> {inspectedPatientHistory.blood_group || 'O+'}</div>
-              <div><strong>Chronic Conditions:</strong> {inspectedPatientHistory.chronic_conditions || 'None'}</div>
-              <div><strong>Allergies:</strong> {inspectedPatientHistory.allergies || 'None'}</div>
-            </div>
+        <DialogHeader>
+          <DialogTitle>Longitudinal Patient Health History</DialogTitle>
+          <DialogDescription>
+            Historical consultations, past prescriptions, and lab records on file.
+          </DialogDescription>
+          <DialogClose onClose={() => setIsPatientHistoryModalOpen(false)} />
+        </DialogHeader>
+        <DialogContent className="max-h-[70vh] overflow-y-auto space-y-4">
+          {inspectedPatientHistory ? (
+            <div className="space-y-4">
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs">
+                <div>
+                  <span className="font-bold text-slate-900 block">{inspectedPatientHistory.patient?.first_name} {inspectedPatientHistory.patient?.last_name}</span>
+                  <span className="text-slate-500 font-mono">UHID: {inspectedPatientHistory.patient?.patient_identifier}</span>
+                </div>
+                <Badge status="VERIFIED" size="sm" />
+              </div>
 
-            <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700 }}>Previous Clinical Encounters</h4>
-            <div style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
-              No previous critical encounter warnings or contraindications recorded for this patient.
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
-              <button className="btn-primary" onClick={() => setIsPatientHistoryModalOpen(false)}>
-                Close Record
-              </button>
-            </div>
-          </div>
-        )}
-      </Modal>
-
-      {/* REPORT OUTBREAK / EMERGENCY MODAL */}
-      <Modal
-        isOpen={isEmergencyModalOpen}
-        onClose={() => setIsEmergencyModalOpen(false)}
-        title="Report Clinical Emergency Incident"
-      >
-        {emergencySuccess ? (
-          <div style={{ textAlign: 'center', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center' }}>
-            <div style={{ width: '56px', height: '56px', borderRadius: '50%', backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <CheckCircle size={32} />
-            </div>
-            <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700 }}>Incident Dispatched to DEC!</h3>
-            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              The District Emergency Coordinator and DHO have been alerted for rapid resource mobilization.
-            </p>
-            <button className="btn-primary" onClick={() => setIsEmergencyModalOpen(false)}>
-              Done
-            </button>
-          </div>
-        ) : (
-          <form onSubmit={handleReportEmergency} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                Incident Title
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. Cluster of 12 Acute Diarrheal Cases in Ward 4"
-                value={emergencyTitle}
-                onChange={(e) => setEmergencyTitle(e.target.value)}
-                required
-                style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}
-              />
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                  Category
+                <h5 className="text-xs font-bold text-slate-800 uppercase mb-2">Previous Encounters</h5>
+                <div className="space-y-2">
+                  {inspectedPatientHistory.consultations?.map((c: any) => (
+                    <div key={c.id} className="p-3 border border-slate-200 rounded-lg text-xs space-y-1">
+                      <div className="flex items-center justify-between font-bold text-slate-900">
+                        <span>{c.chief_complaints}</span>
+                        <span className="text-slate-400 font-normal">{new Date(c.created_at).toLocaleDateString()}</span>
+                      </div>
+                      {c.examination_notes && <p className="text-slate-600">{c.examination_notes}</p>}
+                    </div>
+                  )) || <div className="text-xs text-slate-400">No past clinical visits recorded.</div>}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-xs text-slate-400 text-center py-6">No historical records available.</div>
+          )}
+        </DialogContent>
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={() => setIsPatientHistoryModalOpen(false)}>
+            Close History
+          </Button>
+        </DialogFooter>
+      </Dialog>
+
+      {/* Outbreak / Emergency Modal */}
+      <Dialog
+        open={isEmergencyModalOpen}
+        onOpenChange={setIsEmergencyModalOpen}
+        maxWidth="max-w-md"
+      >
+        <DialogHeader>
+          <DialogTitle>Report Public Health Crisis / Outbreak</DialogTitle>
+          <DialogDescription>
+            Flagging will trigger an urgent notification to the District Health Officer and Emergency Coordinator.
+          </DialogDescription>
+          <DialogClose onClose={() => setIsEmergencyModalOpen(false)} />
+        </DialogHeader>
+        <DialogContent>
+          {emergencySuccess ? (
+            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-center space-y-2">
+              <CheckCircle className="w-10 h-10 text-emerald-600 mx-auto" />
+              <h4 className="text-base font-bold text-emerald-950">Emergency Incident Broadcasted</h4>
+              <p className="text-xs text-emerald-800">
+                District Disaster Management and State Epidemic Cell alerted.
+              </p>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => setIsEmergencyModalOpen(false)}
+                className="mt-3 w-full"
+              >
+                Close
+              </Button>
+            </div>
+          ) : (
+            <form onSubmit={handleReportEmergency} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Incident Category
                 </label>
                 <select
                   value={emergencyCategory}
                   onChange={(e) => setEmergencyCategory(e.target.value)}
-                  style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}
+                  className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg outline-none font-medium"
                 >
-                  <option value="EPIDEMIC">Epidemic / Outbreak</option>
-                  <option value="MASS_CASUALTY">Mass Casualty / Accident</option>
-                  <option value="COLD_CHAIN_FAILURE">Cold Chain Failure</option>
-                  <option value="NATURAL_DISASTER">Cyclone / Flood</option>
+                  <option value="DISEASE_CLUSTER">Disease Cluster / Epidemic Spike (Dengue, Cholera, etc.)</option>
+                  <option value="MASS_CASUALTY">Mass Casualty / Industrial Accident</option>
+                  <option value="FACILITY_DISRUPTION">Critical PHC Infrastructure Failure (Power/Oxygen)</option>
+                  <option value="CRITICAL_STOCKOUT">Critical Life-Saving Drug Stockout</option>
                 </select>
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                  Severity Level
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Incident Title
                 </label>
-                <select
-                  value={emergencySeverity}
-                  onChange={(e) => setEmergencySeverity(e.target.value)}
-                  style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}
-                >
-                  <option value="CRITICAL">Critical (Immediate Response)</option>
-                  <option value="MAJOR">Major</option>
-                  <option value="MODERATE">Moderate</option>
-                </select>
+                <Input
+                  type="text"
+                  value={emergencyTitle}
+                  onChange={(e) => setEmergencyTitle(e.target.value)}
+                  placeholder="e.g. Cluster of 12 Acute Diarrheal cases in Kovalam village"
+                  required
+                />
               </div>
-            </div>
 
-            <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                Clinical Description & Resource Requirements
-              </label>
-              <textarea
-                rows={3}
-                placeholder="Describe patient condition, suspected source, and requested medicines/personnel..."
-                value={emergencyDescription}
-                onChange={(e) => setEmergencyDescription(e.target.value)}
-                required
-                style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}
-              />
-            </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Clinical Summary &amp; Urgent Requirements
+                </label>
+                <Textarea
+                  value={emergencyDescription}
+                  onChange={(e) => setEmergencyDescription(e.target.value)}
+                  placeholder="Describe patient count, clinical severity, urgent medicine or ambulance needs..."
+                  rows={3}
+                  required
+                />
+              </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
-              <button type="button" className="btn-secondary" onClick={() => setIsEmergencyModalOpen(false)}>
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="btn-primary"
-                style={{ backgroundColor: '#dc2626' }}
-              >
-                {isSubmitting ? 'Transmitting...' : 'Dispatch Emergency Report'}
-              </button>
-            </div>
-          </form>
-        )}
-      </Modal>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsEmergencyModalOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="destructive"
+                  size="sm"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? 'Transmitting Alert...' : 'Broadcast Urgent Alert'}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

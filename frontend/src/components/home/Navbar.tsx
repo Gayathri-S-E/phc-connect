@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Building2, Globe2, Lock, Menu, X, ChevronDown } from 'lucide-react';
+import { Hospital, Globe2, Lock, Menu, X, ChevronDown } from 'lucide-react';
 import { Container } from '../common/Container';
 import { useLanguage } from '../../context/LanguageContext';
 
@@ -9,7 +9,7 @@ interface NavbarProps {
 
 const NAV_LINKS = [
   { href: '#platform', labelKey: 'nav.dashboard', defaultLabel: 'Platform' },
-  { href: '#roles', labelKey: 'role.patient', defaultLabel: '13 Canonical Roles' },
+  { href: '#roles', labelKey: 'role.patient', defaultLabel: 'Roles' },
   { href: '#workflow', labelKey: 'nav.activeWorkspace', defaultLabel: 'How It Connects' },
   { href: '#about', labelKey: 'app.subtitle', defaultLabel: 'Architecture' },
 ];
@@ -52,15 +52,15 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenLogin }) => {
           <a href="#" className="flex items-center gap-3 shrink-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500">
             <div
               className="w-9 h-9 rounded-xl flex items-center justify-center text-white shadow-sm shrink-0"
-              style={{ background: 'linear-gradient(135deg, #0284c7 0%, #0d9488 100%)' }}
+              style={{ background: 'linear-gradient(135deg, #5aa9e6 0%, #7fc8f8 100%)' }}
             >
-              <Building2 className="w-5 h-5" />
+              <Hospital className="w-5 h-5" />
             </div>
             <div className="flex items-center gap-2 min-w-0">
               <span className="text-lg font-black tracking-tight text-slate-900 whitespace-nowrap">{t('app.title')}</span>
               <span
                 className="hidden md:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider whitespace-nowrap"
-                style={{ backgroundColor: '#e0f2fe', color: '#0369a1' }}
+                style={{ backgroundColor: '#f0f9ff', color: '#257bb5', border: '1px solid #7fc8f8' }}
               >
                 Resilience Platform
               </span>

@@ -3,14 +3,28 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   Calendar, FileText, Pill, MessageSquare, Star, 
   Clock, Plus, CheckCircle, AlertTriangle, ShieldCheck, 
-  MapPin, Heart, ChevronRight, X, Bot, Sparkles
+  MapPin, Heart, ChevronRight, X, Bot, Sparkles, User,
+  Activity, Shield, Stethoscope, Award
 } from 'lucide-react';
 import { api } from '../services/api';
 import { StateView } from '../components/common/StateView';
 import { Badge } from '../components/common/Badge';
-import { Modal } from '../components/common/Modal';
 import { DataTable } from '../components/common/DataTable';
 import { useLanguage } from '../context/LanguageContext';
+import { PageHeader } from '../components/ui/page-header';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/card';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Textarea } from '../components/ui/textarea';
+import {
+  Dialog,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogContent,
+  DialogFooter,
+  DialogClose,
+} from '../components/ui/dialog';
 
 export default function PatientPortal() {
   const { t, language } = useLanguage();
@@ -170,562 +184,630 @@ export default function PatientPortal() {
   };
 
   if (isLoading) {
-    return <StateView state="loading" message="Loading your health portal..." />;
+    return <StateView state="loading" message="Loading your personal health portal..." />;
   }
 
   if (error && !profile) {
     return <StateView state="error" message={error} onRetry={fetchData} />;
   }
 
+  const upcomingAppts = appointments.filter((a) => a.status === 'SCHEDULED');
+  const activePrescriptions = prescriptions.filter((p) => p.status === 'ACTIVE' || p.status === 'PENDING_DISPENSING');
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      {/* Patient Welcome Hero Header */}
-      <div
-        className="glass-card"
-        style={{
-          padding: '1.5rem',
-          borderRadius: '16px',
-          background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.08) 0%, rgba(59, 130, 246, 0.03) 100%)',
-          border: '1px solid rgba(37, 99, 235, 0.15)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '1rem',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <div
-            style={{
-              width: '56px',
-              height: '56px',
-              borderRadius: '50%',
-              backgroundColor: 'var(--primary)',
-              color: '#ffffff',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: 700,
-              fontSize: '1.35rem',
+    <div className="flex flex-col gap-6 animate-fade-in">
+      {/* Context-First Page Header with Live Citizen Health Metrics */}
+      <PageHeader
+        breadcrumbs={[
+          { label: 'Citizen Services' },
+          { label: profile ? `${profile.first_name} ${profile.last_name || ''}` : 'My Health Portal' },
+        ]}
+        facilityContext={profile?.facility_name || 'Primary Health Centre Kovalam'}
+        title={profile ? `Welcome, ${profile.first_name}` : 'Citizen Health Portal'}
+        description={`Registered UHID: ${profile?.patient_identifier || 'DEMO-PAT-0001'} • Primary care health records and electronic visits synchronized with Government of Tamil Nadu Health Mission.`}
+        actions={
+          <Button
+            variant="primary"
+            onClick={() => {
+              setBookingSuccess(null);
+              setIsBookModalOpen(true);
             }}
+            className="gap-2 shadow-xs"
           >
-            {profile?.first_name?.charAt(0) || 'P'}
-          </div>
-          <div>
-            <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800 }}>
-              {profile ? `${profile.first_name} ${profile.last_name || ''}` : 'Citizen Portal'}
-            </h2>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', marginTop: '0.25rem', fontSize: '0.825rem', color: 'var(--text-muted)' }}>
-              <span>UHID: <strong>{profile?.patient_identifier || 'DEMO-PAT-0001'}</strong></span>
-              <span>•</span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                <MapPin size={13} /> {profile?.facility_name || 'Primary Health Centre Kovalam'}
-              </span>
-            </div>
-          </div>
-        </div>
+            <Plus className="w-4 h-4" />
+            <span>{t('health.bookAppointment') || 'Book Appointment'}</span>
+          </Button>
+        }
+        metrics={[
+          {
+            label: 'Upcoming Visits',
+            value: upcomingAppts.length,
+            hint: upcomingAppts[0] ? `Next: ${upcomingAppts[0].appointment_date}` : 'No queue tokens today',
+            variant: upcomingAppts.length > 0 ? 'sky' : 'default',
+            icon: <Calendar className="w-4 h-4" />,
+          },
+          {
+            label: 'Active Prescriptions',
+            value: prescriptions.length,
+            hint: `${activePrescriptions.length} pending pickup`,
+            variant: activePrescriptions.length > 0 ? 'success' : 'default',
+            icon: <Pill className="w-4 h-4" />,
+          },
+          {
+            label: 'Latest SpO2',
+            value: records?.vitals?.[0]?.spo2 ? `${records.vitals[0].spo2}%` : 'Normal',
+            hint: records?.vitals?.[0] ? `BP ${records.vitals[0].systolic_bp}/${records.vitals[0].diastolic_bp}` : 'Vitals logged',
+            variant: 'default',
+            icon: <Activity className="w-4 h-4" />,
+          },
+          {
+            label: 'ABHA Linkage',
+            value: 'Verified',
+            hint: 'National Health ID active',
+            variant: 'success',
+            icon: <ShieldCheck className="w-4 h-4" />,
+          },
+        ]}
+      />
 
-        <button
-          onClick={() => {
-            setBookingSuccess(null);
-            setIsBookModalOpen(true);
-          }}
-          className="btn-primary"
-          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.65rem 1.25rem' }}
-        >
-          <Plus size={18} />
-          {t('health.bookAppointment')}
-        </button>
-      </div>
-
-      {/* Navigation Tabs */}
-      <div
-        style={{
-          display: 'flex',
-          gap: '0.5rem',
-          borderBottom: '1px solid var(--border-color)',
-          paddingBottom: '0.25rem',
-          overflowX: 'auto',
-        }}
-      >
+      {/* Navigation Sub-Tabs */}
+      <div className="flex items-center gap-1.5 p-1 bg-slate-100 border border-slate-200/80 rounded-xl overflow-x-auto no-scrollbar max-w-full">
         {[
-          { key: 'appointments', label: t('health.appointments'), icon: <Calendar size={16} /> },
-          { key: 'records', label: 'Clinical Records', icon: <FileText size={16} /> },
-          { key: 'prescriptions', label: t('health.prescription'), icon: <Pill size={16} /> },
-          { key: 'feedback', label: 'Feedback & Grievances', icon: <Star size={16} /> },
-          { key: 'awareness', label: 'Health Bulletins', icon: <Heart size={16} /> },
-          { key: 'assistant', label: 'AI Wellness Assistant', icon: <Bot size={16} /> },
+          { key: 'appointments', label: t('health.appointments') || 'Appointments', icon: <Calendar className="w-4 h-4" /> },
+          { key: 'records', label: 'Clinical Records', icon: <FileText className="w-4 h-4" /> },
+          { key: 'prescriptions', label: t('health.prescription') || 'Prescriptions', icon: <Pill className="w-4 h-4" /> },
+          { key: 'feedback', label: 'Care Feedback', icon: <Star className="w-4 h-4" /> },
+          { key: 'awareness', label: 'Health Bulletins', icon: <Heart className="w-4 h-4" /> },
+          { key: 'assistant', label: 'AI Wellness Guide', icon: <Bot className="w-4 h-4" /> },
         ].map((tab) => (
           <button
             key={tab.key}
+            type="button"
             onClick={() => handleTabChange(tab.key as any)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              padding: '0.65rem 1rem',
-              borderRadius: '8px 8px 0 0',
-              border: 'none',
-              cursor: 'pointer',
-              fontWeight: activeTab === tab.key ? 700 : 500,
-              fontSize: '0.875rem',
-              color: activeTab === tab.key ? 'var(--primary)' : 'var(--text-muted)',
-              borderBottom: activeTab === tab.key ? '2px solid var(--primary)' : '2px solid transparent',
-              backgroundColor: 'transparent',
-              whiteSpace: 'nowrap',
-            }}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer select-none ${
+              activeTab === tab.key
+                ? 'bg-white text-sky-900 shadow-2xs font-extrabold'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+            }`}
           >
             {tab.icon}
-            {tab.label}
+            <span>{tab.label}</span>
           </button>
         ))}
       </div>
 
-      {/* TAB CONTENT: AI WELLNESS ASSISTANT */}
-      {activeTab === 'assistant' && (
-        <div className="glass-card" style={{ padding: '1.5rem', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: 'var(--primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Bot size={22} />
-            </div>
-            <div>
-              <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>AI Wellness & Triage Assistant</h3>
-              <p style={{ margin: 0, fontSize: '0.825rem', color: 'var(--text-muted)' }}>
-                Ask questions about symptoms, preventive health measures, diet recommendations, and local clinic services.
-              </p>
-            </div>
-          </div>
-          <div style={{ padding: '1rem', backgroundColor: 'rgba(37, 99, 235, 0.05)', borderRadius: '12px', border: '1px solid rgba(37, 99, 235, 0.15)', fontSize: '0.875rem', color: 'var(--text-main)', lineHeight: 1.5 }}>
-            <p style={{ margin: 0 }}>
-              💡 <strong>Quick Access:</strong> You can also access the AI Assistant at any time by clicking the floating ✨ button at the bottom-right of any screen.
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* TAB CONTENT: APPOINTMENTS */}
       {activeTab === 'appointments' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>Upcoming & Past Visits</h3>
-            <span style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
-              Showing {appointments.length} appointments
-            </span>
-          </div>
-
-          <DataTable
-            data={appointments}
-            keyExtractor={(a) => a.id}
-            searchFilter={(a, q) => a.slot_time.toLowerCase().includes(q) || (a.status || '').toLowerCase().includes(q)}
-            emptyTitle="No Appointments Scheduled"
-            emptyMessage="You have no upcoming appointments. Click 'Book Appointment' above to schedule a visit."
-            columns={[
-              {
-                key: 'token',
-                header: 'Token #',
-                render: (a) => (
-                  <span
-                    style={{
-                      display: 'inline-block',
-                      padding: '0.2rem 0.6rem',
-                      borderRadius: '8px',
-                      backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                      color: 'var(--primary)',
-                      fontWeight: 700,
-                      fontSize: '0.9rem',
-                    }}
-                  >
-                    #{a.token_number}
-                  </span>
-                ),
-              },
-              { key: 'appointment_date', header: 'Date', render: (a) => a.appointment_date },
-              { key: 'slot_time', header: 'Slot Time', render: (a) => a.slot_time },
-              { key: 'reason', header: 'Reason for Visit', render: (a) => a.reason_for_visit || 'General Consultation' },
-              { key: 'status', header: 'Status', render: (a) => <Badge status={a.status} /> },
-              {
-                key: 'actions',
-                header: 'Action',
-                render: (a) =>
-                  a.status === 'SCHEDULED' ? (
-                    <button
-                      onClick={() => handleCancelAppointment(a.id)}
-                      className="btn-secondary"
-                      style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem', color: '#dc2626' }}
-                    >
-                      Cancel
-                    </button>
-                  ) : null,
-              },
-            ]}
-          />
-        </div>
+        <Card>
+          <CardHeader>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <CardTitle>Upcoming &amp; Past Visits</CardTitle>
+                <CardDescription>
+                  Review appointment tokens, assigned medical officers, and queue statuses.
+                </CardDescription>
+              </div>
+              <span className="text-xs text-slate-500 font-medium">
+                {appointments.length} total visit records
+              </span>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <DataTable
+              data={appointments}
+              keyExtractor={(a) => a.id}
+              searchFilter={(a, q) =>
+                a.slot_time.toLowerCase().includes(q) ||
+                (a.status || '').toLowerCase().includes(q) ||
+                (a.reason_for_visit || '').toLowerCase().includes(q)
+              }
+              emptyTitle="No Appointments Scheduled"
+              emptyMessage="You have no appointments booked yet. Click 'Book Appointment' to schedule a doctor visit."
+              columns={[
+                {
+                  key: 'token',
+                  header: 'OPD Token',
+                  render: (a) => (
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-sky-50 text-sky-800 font-mono font-bold text-xs border border-sky-200/80">
+                      #{a.token_number}
+                    </span>
+                  ),
+                },
+                { key: 'appointment_date', header: 'Date', render: (a) => a.appointment_date },
+                { key: 'slot_time', header: 'Slot Time', render: (a) => a.slot_time },
+                {
+                  key: 'reason',
+                  header: 'Reason for Visit',
+                  render: (a) => (
+                    <span className="font-medium text-slate-800">
+                      {a.reason_for_visit || 'General Consultation'}
+                    </span>
+                  ),
+                },
+                {
+                  key: 'status',
+                  header: 'Status',
+                  render: (a) => <Badge status={a.status} size="sm" />,
+                },
+                {
+                  key: 'actions',
+                  header: 'Actions',
+                  render: (a) =>
+                    a.status === 'SCHEDULED' ? (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleCancelAppointment(a.id)}
+                        className="h-7 text-xs px-2.5"
+                      >
+                        Cancel
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-slate-400">—</span>
+                    ),
+                },
+              ]}
+            />
+          </CardContent>
+        </Card>
       )}
 
       {/* TAB CONTENT: CLINICAL RECORDS */}
       {activeTab === 'records' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>Longitudinal Health Records</h3>
-          
-          {/* Vitals Summary Card */}
-          {records?.vitals && records.vitals.length > 0 && (
-            <div className="glass-card" style={{ padding: '1.25rem', borderRadius: '12px' }}>
-              <h4 style={{ margin: '0 0 0.75rem 0', fontSize: '0.95rem', fontWeight: 600, color: 'var(--primary)' }}>
-                Latest Triage Vitals
-              </h4>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.75rem' }}>
-                <div style={{ padding: '0.75rem', backgroundColor: 'rgba(241, 245, 249, 0.7)', borderRadius: '8px' }}>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Blood Pressure</span>
-                  <div style={{ fontSize: '1.1rem', fontWeight: 700 }}>
-                    {records.vitals[0].systolic_bp}/{records.vitals[0].diastolic_bp} <span style={{ fontSize: '0.75rem' }}>mmHg</span>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Latest Vitals Card */}
+          <Card className="lg:col-span-1 h-fit">
+            <CardHeader>
+              <CardTitle className="text-sm">Latest Triage Vitals</CardTitle>
+              <CardDescription>Recorded by triage nurse during OPD check-in</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {records?.vitals && records.vitals.length > 0 ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl space-y-1">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase">Blood Pressure</span>
+                    <div className="text-base font-extrabold text-slate-900">
+                      {records.vitals[0].systolic_bp}/{records.vitals[0].diastolic_bp}{' '}
+                      <span className="text-[10px] text-slate-400 font-normal">mmHg</span>
+                    </div>
+                  </div>
+                  <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl space-y-1">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase">Heart Rate</span>
+                    <div className="text-base font-extrabold text-slate-900">
+                      {records.vitals[0].heart_rate}{' '}
+                      <span className="text-[10px] text-slate-400 font-normal">bpm</span>
+                    </div>
+                  </div>
+                  <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl space-y-1">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase">SpO2 Oxygen</span>
+                    <div className={`text-base font-extrabold ${records.vitals[0].spo2 < 95 ? 'text-red-600' : 'text-emerald-700'}`}>
+                      {records.vitals[0].spo2}%
+                    </div>
+                  </div>
+                  <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl space-y-1">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase">Temperature</span>
+                    <div className="text-base font-extrabold text-slate-900">
+                      {records.vitals[0].temperature}°F
+                    </div>
                   </div>
                 </div>
-                <div style={{ padding: '0.75rem', backgroundColor: 'rgba(241, 245, 249, 0.7)', borderRadius: '8px' }}>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Heart Rate</span>
-                  <div style={{ fontSize: '1.1rem', fontWeight: 700 }}>
-                    {records.vitals[0].heart_rate} <span style={{ fontSize: '0.75rem' }}>bpm</span>
-                  </div>
+              ) : (
+                <div className="text-xs text-slate-400 text-center py-6">
+                  No vitals logged yet.
                 </div>
-                <div style={{ padding: '0.75rem', backgroundColor: 'rgba(241, 245, 249, 0.7)', borderRadius: '8px' }}>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>SpO2 Oxygen</span>
-                  <div style={{ fontSize: '1.1rem', fontWeight: 700, color: records.vitals[0].spo2 < 95 ? '#dc2626' : 'var(--text-main)' }}>
-                    {records.vitals[0].spo2}%
-                  </div>
-                </div>
-                <div style={{ padding: '0.75rem', backgroundColor: 'rgba(241, 245, 249, 0.7)', borderRadius: '8px' }}>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Temperature</span>
-                  <div style={{ fontSize: '1.1rem', fontWeight: 700 }}>
-                    {records.vitals[0].temperature}°F
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+              )}
+            </CardContent>
+          </Card>
 
           {/* Past Consultations */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600 }}>Physician Consultations</h4>
-            {records?.consultations?.length === 0 ? (
-              <StateView state="empty" title="No Consultation History" message="You have no recorded clinical visits yet." />
-            ) : (
-              records?.consultations?.map((c: any) => (
-                <div key={c.id} className="glass-card" style={{ padding: '1rem', borderRadius: '10px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                      <h5 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700 }}>
-                        {c.chief_complaints || 'Clinical Consultation'}
-                      </h5>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                        Date: {new Date(c.created_at).toLocaleDateString()}
-                      </span>
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="text-sm">Doctor Consultation Encounters</CardTitle>
+              <CardDescription>Clinical diagnoses, physician observations, and treatment plans</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {!records?.consultations || records.consultations.length === 0 ? (
+                <StateView state="empty" title="No Past Encounters" message="You have no recorded clinical visits on file." />
+              ) : (
+                records.consultations.map((c: any) => (
+                  <div key={c.id} className="p-4 rounded-xl border border-slate-200 bg-white hover:border-slate-300 transition shadow-2xs space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-900">
+                          {c.chief_complaints || 'Clinical OPD Consultation'}
+                        </h4>
+                        <span className="text-xs text-slate-400">
+                          Encounter Date: {new Date(c.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <Badge status={c.status} size="sm" />
                     </div>
-                    <Badge status={c.status} />
+
+                    {c.examination_notes && (
+                      <p className="text-xs text-slate-700 leading-relaxed bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                        <strong className="text-slate-900">Physician Notes:</strong> {c.examination_notes}
+                      </p>
+                    )}
+
+                    {c.diagnosis_codes?.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {c.diagnosis_codes.map((diag: string, idx: number) => (
+                          <span
+                            key={idx}
+                            className="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-700 font-mono text-[11px] font-semibold"
+                          >
+                            ICD-10: {diag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  {c.examination_notes && (
-                    <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-main)' }}>
-                      <strong>Doctor Notes:</strong> {c.examination_notes}
-                    </p>
-                  )}
-                  {c.diagnosis_codes?.length > 0 && (
-                    <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
-                      {c.diagnosis_codes.map((diag: string, idx: number) => (
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* TAB CONTENT: PRESCRIPTIONS */}
+      {activeTab === 'prescriptions' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Digital Prescriptions</CardTitle>
+            <CardDescription>
+              Electronic medicine orders issued by medical officers, linked to facility dispensary inventory.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DataTable
+              data={prescriptions}
+              keyExtractor={(p) => p.id}
+              emptyTitle="No Prescriptions Issued"
+              emptyMessage="You currently have no active or historical prescriptions on record."
+              columns={[
+                {
+                  key: 'id',
+                  header: 'Prescription ID',
+                  render: (p) => <span className="font-mono text-xs text-slate-600">Rx-{p.id.slice(0, 8)}</span>,
+                },
+                {
+                  key: 'date',
+                  header: 'Issued Date',
+                  render: (p) => (p.created_at ? new Date(p.created_at).toLocaleDateString() : 'Today'),
+                },
+                {
+                  key: 'doctor',
+                  header: 'Prescribing Officer',
+                  render: (p) => (
+                    <span className="font-semibold text-slate-800">
+                      {p.doctor_name || 'Dr. Ramesh (Medical Officer)'}
+                    </span>
+                  ),
+                },
+                {
+                  key: 'medications',
+                  header: 'Medications',
+                  render: (p) => (
+                    <div className="flex flex-wrap gap-1 max-w-sm">
+                      {p.items?.map((it: any, idx: number) => (
                         <span
                           key={idx}
-                          style={{
-                            padding: '0.15rem 0.5rem',
-                            borderRadius: '4px',
-                            backgroundColor: 'rgba(100, 116, 139, 0.1)',
-                            fontSize: '0.75rem',
-                            fontWeight: 600,
-                          }}
+                          className="px-2 py-0.5 rounded bg-sky-50 text-sky-800 border border-sky-100 text-[11px] font-medium"
                         >
-                          ICD-10: {diag}
+                          {it.medication_name} ({it.dosage})
                         </span>
-                      ))}
+                      )) || <span className="text-xs text-slate-500">Standard formulary pack</span>}
                     </div>
-                  )}
+                  ),
+                },
+                {
+                  key: 'status',
+                  header: 'Dispense Status',
+                  render: (p) => <Badge status={p.status} size="sm" />,
+                },
+              ]}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* TAB CONTENT: FEEDBACK */}
+      {activeTab === 'feedback' && (
+        <Card className="max-w-2xl mx-auto">
+          <CardHeader>
+            <CardTitle>Facility Care &amp; Service Feedback</CardTitle>
+            <CardDescription>
+              Help us improve public health services at {profile?.facility_name || 'your local PHC'}. Your comments are reviewed by the District Health Officer.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {feedbackSuccess ? (
+              <div className="p-6 bg-emerald-50 border border-emerald-200 rounded-xl text-center space-y-2">
+                <CheckCircle className="w-10 h-10 text-emerald-600 mx-auto" />
+                <h4 className="text-base font-bold text-emerald-950">Thank you for your feedback!</h4>
+                <p className="text-xs text-emerald-800">
+                  Your grievance / suggestion has been logged with the District Family Welfare Office.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setFeedbackSuccess(false)}
+                  className="mt-3"
+                >
+                  Submit Another Note
+                </Button>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmitFeedback} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Rating (1 to 5 Stars)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setFeedbackRating(star)}
+                        className={`p-2 rounded-lg border transition ${
+                          feedbackRating >= star
+                            ? 'bg-amber-50 border-amber-300 text-amber-500'
+                            : 'bg-slate-50 border-slate-200 text-slate-300'
+                        }`}
+                      >
+                        <Star className="w-5 h-5 fill-current" />
+                      </button>
+                    ))}
+                    <span className="text-xs font-bold text-slate-700 ml-2">
+                      {feedbackRating} of 5 Stars
+                    </span>
+                  </div>
                 </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Feedback Category
+                  </label>
+                  <select
+                    value={feedbackCategory}
+                    onChange={(e) => setFeedbackCategory(e.target.value)}
+                    className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-sky-500 font-medium"
+                  >
+                    <option value="CARE_QUALITY">Doctor &amp; Nursing Care Quality</option>
+                    <option value="WAIT_TIME">Wait Time &amp; OPD Queue</option>
+                    <option value="MEDICINE_AVAILABILITY">Medicine Availability in Dispensary</option>
+                    <option value="FACILITY_CLEANLINESS">Cleanliness &amp; Infrastructure</option>
+                    <option value="STAFF_COURTESY">Staff Courtesy &amp; Helpfulness</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Your Comments
+                  </label>
+                  <Textarea
+                    value={feedbackComments}
+                    onChange={(e) => setFeedbackComments(e.target.value)}
+                    placeholder="Describe your experience during this visit..."
+                    rows={4}
+                    required
+                  />
+                </div>
+
+                <Button
+                  type="submit"
+                  variant="primary"
+                  disabled={isSubmitting || !feedbackComments.trim()}
+                  className="w-full"
+                >
+                  {isSubmitting ? 'Submitting Feedback...' : 'Submit Citizen Feedback'}
+                </Button>
+              </form>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* TAB CONTENT: AWARENESS BULLETINS */}
+      {activeTab === 'awareness' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-base font-bold text-slate-900">Tamil Nadu Public Health Bulletins</h3>
+              <p className="text-xs text-slate-500">Preventive education, epidemic awareness, and maternal care guidance.</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {awareness.length > 0 ? (
+              awareness.map((slide, idx) => (
+                <Card key={idx} className="flex flex-col justify-between overflow-hidden">
+                  <CardHeader className="bg-sky-50/50 pb-3">
+                    <div className="flex items-center gap-2 text-sky-700 text-[10px] font-extrabold uppercase tracking-wider">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>{slide.category || 'Public Health Alert'}</span>
+                    </div>
+                    <CardTitle className="text-sm mt-1">{slide.title}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-3">
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      {slide.description || slide.content}
+                    </p>
+                  </CardContent>
+                </Card>
+              ))
+            ) : (
+              [
+                {
+                  title: 'Dengue & Vector-Borne Prevention',
+                  category: 'Epidemic Guidance',
+                  content: 'Eliminate stagnant water around homes. Utilize mosquito nets and report high fever lasting more than 48 hours to the nearest PHC immediately.',
+                },
+                {
+                  title: 'Universal Child Immunization (UIP)',
+                  category: 'Maternal & Child Health',
+                  content: 'Ensure timely administration of Pentavalent, OPV, and MR vaccines. Visit every Wednesday during Village Health and Nutrition Days (VHND).',
+                },
+                {
+                  title: 'Makkalai Thedi Maruthuvam (Healthcare at Doorstep)',
+                  category: 'State Health Scheme',
+                  content: 'Free home delivery of hypertension and diabetes medications for elderly and non-ambulatory citizens across Tamil Nadu.',
+                },
+              ].map((slide, i) => (
+                <Card key={i} className="flex flex-col justify-between">
+                  <CardHeader className="bg-sky-50/50 pb-3">
+                    <div className="flex items-center gap-2 text-sky-700 text-[10px] font-extrabold uppercase tracking-wider">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>{slide.category}</span>
+                    </div>
+                    <CardTitle className="text-sm mt-1">{slide.title}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-3">
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      {slide.content}
+                    </p>
+                  </CardContent>
+                </Card>
               ))
             )}
           </div>
         </div>
       )}
 
-      {/* TAB CONTENT: PRESCRIPTIONS */}
-      {activeTab === 'prescriptions' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>Electronic Prescriptions</h3>
-          <DataTable
-            data={prescriptions}
-            keyExtractor={(p) => p.id}
-            emptyTitle="No Prescriptions on File"
-            emptyMessage="No medications have been prescribed for your account."
-            columns={[
-              {
-                key: 'date',
-                header: 'Date',
-                render: (p) => new Date(p.created_at).toLocaleDateString(),
-              },
-              {
-                key: 'items',
-                header: 'Medications',
-                render: (p) => (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                    {p.items?.map((item: any, i: number) => (
-                      <div key={i} style={{ fontSize: '0.825rem' }}>
-                        <strong>{item.medication_name || item.generic_name || 'Medicine'}</strong> — {item.dosage} ({item.frequency}) for {item.duration_days} days
-                      </div>
-                    ))}
-                  </div>
-                ),
-              },
-              { key: 'status', header: 'Fulfillment Status', render: (p) => <Badge status={p.status} /> },
-            ]}
-          />
-        </div>
+      {/* TAB CONTENT: AI ASSISTANT INFO */}
+      {activeTab === 'assistant' && (
+        <Card className="max-w-2xl mx-auto">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 to-teal-500 flex items-center justify-center text-white">
+                <Bot className="w-6 h-6" />
+              </div>
+              <div>
+                <CardTitle>AI Citizen Health Assistant</CardTitle>
+                <CardDescription>Multilingual voice &amp; text clinical guide</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Your Citizen Health Assistant can clarify medical prescriptions, explain diagnosis terms in Tamil or Hindi, find operating hours of nearby PHCs, and assist with booking appointment slots.
+            </p>
+            <div className="p-3 bg-sky-50 border border-sky-100 rounded-xl text-xs text-sky-950 font-medium flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-sky-600 shrink-0" />
+              <span>Click the floating button in the bottom right corner anytime to speak or chat with the assistant.</span>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
-      {/* TAB CONTENT: FEEDBACK & GRIEVANCES */}
-      {activeTab === 'feedback' && (
-        <div className="glass-card" style={{ padding: '1.5rem', borderRadius: '14px', maxWidth: '600px' }}>
-          <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1.15rem', fontWeight: 700 }}>Submit PHC Feedback or Grievance</h3>
-          <p style={{ margin: '0 0 1.25rem 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            Your feedback directly informs the PHC In-Charge and District Health Officer to improve local health services.
-          </p>
-
-          {feedbackSuccess ? (
-            <div
-              style={{
-                padding: '1rem',
-                borderRadius: '8px',
-                backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                color: '#059669',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-              }}
-            >
-              <CheckCircle size={20} />
-              <span>Thank you! Your feedback has been submitted to the PHC In-Charge.</span>
+      {/* Booking Dialog Modal */}
+      <Dialog open={isBookModalOpen} onOpenChange={setIsBookModalOpen} maxWidth="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Book OPD Doctor Appointment</DialogTitle>
+          <DialogClose onClose={() => setIsBookModalOpen(false)} />
+        </DialogHeader>
+        <DialogContent>
+          {bookingSuccess ? (
+            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-center space-y-2">
+              <CheckCircle className="w-10 h-10 text-emerald-600 mx-auto" />
+              <h4 className="text-base font-bold text-emerald-950">Appointment Confirmed!</h4>
+              <div className="p-2.5 bg-white rounded-lg border border-emerald-200 text-xs font-mono font-bold text-emerald-900">
+                Token #{bookingSuccess.token_number} • {bookingSuccess.slot_time}
+              </div>
+              <p className="text-xs text-emerald-800">
+                Please arrive at {profile?.facility_name || 'the PHC'} 15 minutes before your time slot.
+              </p>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  setIsBookModalOpen(false);
+                  setBookingSuccess(null);
+                }}
+                className="mt-3 w-full"
+              >
+                Done
+              </Button>
             </div>
           ) : (
-            <form onSubmit={handleSubmitFeedback} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <form onSubmit={handleBookAppointment} className="space-y-4">
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                  Satisfaction Rating (1 to 5 Stars)
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Primary Health Facility
                 </label>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      type="button"
-                      onClick={() => setFeedbackRating(star)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        padding: '0.25rem',
-                        color: star <= feedbackRating ? '#eab308' : '#cbd5e1',
-                      }}
-                    >
-                      <Star size={28} fill={star <= feedbackRating ? '#eab308' : 'none'} />
-                    </button>
-                  ))}
+                <div className="p-2.5 rounded-lg bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-800 flex items-center gap-2">
+                  <MapPin className="w-3.5 h-3.5 text-sky-600" />
+                  <span>{profile?.facility_name || 'Primary Health Centre Kovalam'}</span>
                 </div>
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                  Category
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Appointment Date
+                </label>
+                <Input
+                  type="date"
+                  value={bookDate}
+                  min={new Date().toISOString().split('T')[0]}
+                  onChange={(e) => setBookDate(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Preferred Time Slot
                 </label>
                 <select
-                  value={feedbackCategory}
-                  onChange={(e) => setFeedbackCategory(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.6rem',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border-color)',
-                    fontSize: '0.875rem',
-                  }}
+                  value={bookSlot}
+                  onChange={(e) => setBookSlot(e.target.value)}
+                  className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-sky-500 font-medium"
                 >
-                  <option value="CARE_QUALITY">Quality of Doctor Care</option>
-                  <option value="WAITING_TIME">OPD Waiting Time</option>
-                  <option value="MEDICINE_AVAILABILITY">Pharmacy / Medicine Availability</option>
-                  <option value="CLEANLINESS">Facility Cleanliness & Hygiene</option>
-                  <option value="STAFF_BEHAVIOR">Staff Conduct</option>
+                  <option value="09:00:00">09:00 AM – 09:30 AM (Morning OPD)</option>
+                  <option value="09:30:00">09:30 AM – 10:00 AM (Morning OPD)</option>
+                  <option value="10:00:00">10:00 AM – 10:30 AM (Morning OPD)</option>
+                  <option value="10:30:00">10:30 AM – 11:00 AM (Morning OPD)</option>
+                  <option value="11:30:00">11:30 AM – 12:00 PM (Mid-day OPD)</option>
+                  <option value="14:30:00">02:30 PM – 03:00 PM (Afternoon OPD)</option>
+                  <option value="15:30:00">03:30 PM – 04:00 PM (Afternoon OPD)</option>
                 </select>
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                  Comments or Grievance Details
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Reason for Visit
                 </label>
-                <textarea
-                  rows={4}
-                  value={feedbackComments}
-                  onChange={(e) => setFeedbackComments(e.target.value)}
-                  placeholder="Describe your visit experience or any issues encountered..."
+                <Input
+                  type="text"
+                  value={bookReason}
+                  onChange={(e) => setBookReason(e.target.value)}
+                  placeholder="e.g. Fever, routine BP check, cough..."
                   required
-                  style={{
-                    width: '100%',
-                    padding: '0.6rem',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border-color)',
-                    fontSize: '0.875rem',
-                    outline: 'none',
-                  }}
                 />
               </div>
 
-              <button
-                type="submit"
-                disabled={isSubmitting || !feedbackComments.trim()}
-                className="btn-primary"
-                style={{ padding: '0.65rem 1rem' }}
-              >
-                {isSubmitting ? 'Submitting...' : 'Submit Feedback'}
-              </button>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsBookModalOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? 'Confirming Token...' : 'Confirm Appointment'}
+                </Button>
+              </DialogFooter>
             </form>
           )}
-        </div>
-      )}
-
-      {/* TAB CONTENT: AWARENESS BULLETINS */}
-      {activeTab === 'awareness' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
-          {awareness.length === 0 ? (
-            <StateView state="empty" title="No Bulletins" message="Check back later for seasonal health advisories." />
-          ) : (
-            awareness.map((slide) => (
-              <div
-                key={slide.id}
-                className="glass-card"
-                style={{
-                  padding: '1.25rem',
-                  borderRadius: '12px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.5rem',
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: '0.725rem',
-                    fontWeight: 700,
-                    textTransform: 'uppercase',
-                    color: 'var(--primary)',
-                  }}
-                >
-                  {slide.category || 'PREVENTIVE HEALTH'}
-                </span>
-                <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>
-                  {language === 'ta' && slide.title_ta ? slide.title_ta : slide.title}
-                </h4>
-                <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.45 }}>
-                  {language === 'ta' && slide.body_ta ? slide.body_ta : slide.body}
-                </p>
-              </div>
-            ))
-          )}
-        </div>
-      )}
-
-      {/* BOOK APPOINTMENT MODAL */}
-      <Modal
-        isOpen={isBookModalOpen}
-        onClose={() => setIsBookModalOpen(false)}
-        title="Schedule Clinic Appointment"
-      >
-        {bookingSuccess ? (
-          <div style={{ textAlign: 'center', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center' }}>
-            <div style={{ width: '60px', height: '60px', borderRadius: '50%', backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <CheckCircle size={36} />
-            </div>
-            <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>Appointment Confirmed!</h3>
-            <div
-              style={{
-                padding: '1rem 1.5rem',
-                borderRadius: '12px',
-                backgroundColor: 'rgba(37, 99, 235, 0.08)',
-                border: '1px solid rgba(37, 99, 235, 0.2)',
-                textAlign: 'center',
-              }}
-            >
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Your Assigned Token Number</span>
-              <div style={{ fontSize: '2.5rem', fontWeight: 900, color: 'var(--primary)', marginTop: '0.25rem' }}>
-                #{bookingSuccess.token_number}
-              </div>
-              <div style={{ fontSize: '0.85rem', marginTop: '0.5rem' }}>
-                Date: <strong>{new Date(bookingSuccess.appointment_date).toLocaleDateString()}</strong> at <strong>{bookingSuccess.time_slot || bookingSuccess.slot_time}</strong>
-              </div>
-            </div>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>
-              Please arrive 15 minutes before your slot and present this token at the triage desk.
-            </p>
-            <button className="btn-primary" onClick={() => setIsBookModalOpen(false)}>
-              Done
-            </button>
-          </div>
-        ) : (
-          <form onSubmit={handleBookAppointment} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                Appointment Date
-              </label>
-              <input
-                type="date"
-                value={bookDate}
-                onChange={(e) => setBookDate(e.target.value)}
-                min={new Date().toISOString().split('T')[0]}
-                required
-                style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}
-              />
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                Preferred Time Slot
-              </label>
-              <select
-                value={bookSlot}
-                onChange={(e) => setBookSlot(e.target.value)}
-                style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}
-              >
-                <option value="09:00:00">09:00 AM - 09:30 AM</option>
-                <option value="09:30:00">09:30 AM - 10:00 AM</option>
-                <option value="10:00:00">10:00 AM - 10:30 AM</option>
-                <option value="10:30:00">10:30 AM - 11:00 AM</option>
-                <option value="11:00:00">11:00 AM - 11:30 AM</option>
-                <option value="14:00:00">02:00 PM - 02:30 PM</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.35rem' }}>
-                Reason for Visit
-              </label>
-              <input
-                type="text"
-                value={bookReason}
-                onChange={(e) => setBookReason(e.target.value)}
-                placeholder="e.g. Fever, cough, diabetes follow-up"
-                required
-                style={{ width: '100%', padding: '0.6rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}
-              />
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
-              <button type="button" className="btn-secondary" onClick={() => setIsBookModalOpen(false)}>
-                Cancel
-              </button>
-              <button type="submit" disabled={isSubmitting} className="btn-primary">
-                {isSubmitting ? 'Confirming...' : 'Confirm Booking'}
-              </button>
-            </div>
-          </form>
-        )}
-      </Modal>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

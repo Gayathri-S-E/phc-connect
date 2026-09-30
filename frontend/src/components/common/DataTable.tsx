@@ -1,7 +1,17 @@
 import React, { useState } from 'react';
-import { Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
 import { StateView } from './StateView';
 import { useLanguage } from '../../context/LanguageContext';
+import { Input } from '../ui/input';
+import { Button } from '../ui/button';
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableHead,
+  TableRow,
+  TableCell,
+} from '../ui/table';
 
 export interface Column<T> {
   key?: string;
@@ -23,6 +33,7 @@ interface DataTableProps<T> {
   emptyTitle?: string;
   emptyMessage?: string;
   pageSize?: number;
+  actions?: React.ReactNode;
 }
 
 export function DataTable<T>({
@@ -37,6 +48,7 @@ export function DataTable<T>({
   emptyTitle,
   emptyMessage,
   pageSize = 10,
+  actions,
 }: DataTableProps<T>) {
   const { t } = useLanguage();
   const [search, setSearch] = useState('');
@@ -46,194 +58,144 @@ export function DataTable<T>({
     return <StateView state="loading" />;
   }
 
-  const filteredData = searchable && search.trim() && searchFilter
-    ? data.filter((row) => searchFilter(row, search.toLowerCase().trim()))
-    : data;
+  const filteredData =
+    searchable && search.trim() && searchFilter
+      ? data.filter((row) => searchFilter(row, search.toLowerCase().trim()))
+      : data;
 
   const totalPages = Math.ceil(filteredData.length / pageSize) || 1;
-  const paginatedData = filteredData.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const paginatedData = filteredData.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', width: '100%' }}>
-      {/* Search Header */}
-      {searchable && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
-          <div
-            style={{
-              position: 'relative',
-              width: '100%',
-              maxWidth: '340px',
-              display: 'flex',
-              alignItems: 'center',
-            }}
-          >
-            <Search
-              size={16}
-              style={{
-                position: 'absolute',
-                left: '0.85rem',
-                color: 'var(--text-muted)',
-              }}
-            />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setCurrentPage(1);
-              }}
-              placeholder={searchPlaceholder || t('table.search')}
-              style={{
-                width: '100%',
-                padding: '0.55rem 0.85rem 0.55rem 2.25rem',
-                borderRadius: '8px',
-                border: '1px solid var(--border-color)',
-                fontSize: '0.875rem',
-                outline: 'none',
-              }}
-            />
+    <div className="flex flex-col gap-3 w-full">
+      {/* Search & Actions Header */}
+      {(searchable || actions) && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          {searchable ? (
+            <div className="relative w-full max-w-sm">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
+              <Input
+                type="text"
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setCurrentPage(1);
+                }}
+                placeholder={searchPlaceholder || t('table.search') || 'Filter records...'}
+                className="pl-9 h-9 text-xs"
+              />
+            </div>
+          ) : (
+            <div />
+          )}
+
+          <div className="flex items-center gap-3 self-end sm:self-auto text-xs text-slate-500 font-medium">
+            <span>
+              {t('table.total') || 'Total records'}: <strong className="text-slate-800 font-bold">{filteredData.length}</strong>
+            </span>
+            {actions}
           </div>
-          <span style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
-            {t('table.total')}: <strong>{filteredData.length}</strong>
-          </span>
         </div>
       )}
 
-      {/* Table Container */}
-      <div
-        style={{
-          overflowX: 'auto',
-          borderRadius: '12px',
-          border: '1px solid var(--border-color)',
-          backgroundColor: '#ffffff',
-        }}
-      >
-        <table
-          style={{
-            width: '100%',
-            borderCollapse: 'collapse',
-            textAlign: 'left',
-            fontSize: '0.875rem',
-          }}
-        >
-          <thead>
-            <tr
-              style={{
-                backgroundColor: 'rgba(248, 250, 252, 0.9)',
-                borderBottom: '1px solid var(--border-color)',
-              }}
-            >
-              {columns.map((col, idx) => (
-                <th
-                  key={col.key || (typeof col.accessor === 'string' ? col.accessor : String(idx))}
-                  style={{
-                    padding: '0.85rem 1rem',
-                    fontWeight: 600,
-                    color: 'var(--text-muted)',
-                    width: col.width,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {col.header}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {paginatedData.length === 0 ? (
-              <tr>
-                <td colSpan={columns.length} style={{ padding: '2rem 1rem' }}>
-                  <StateView
-                    state="empty"
-                    title={emptyTitle || t('table.emptyTitle')}
-                    message={emptyMessage || (search ? t('table.noResults') : t('table.emptyMessage'))}
-                  />
-                </td>
-              </tr>
-            ) : (
-              paginatedData.map((row, rIdx) => {
-                const rowKey = keyExtractor
-                  ? keyExtractor(row)
-                  : keyField && (row as any)[keyField] !== undefined
-                  ? String((row as any)[keyField])
-                  : (row as any).id || String(rIdx);
+      {/* Table Surface */}
+      <Table>
+        <TableHeader>
+          <TableRow>
+            {columns.map((col, idx) => (
+              <TableHead
+                key={col.key || (typeof col.accessor === 'string' ? col.accessor : String(idx))}
+                style={{ width: col.width }}
+              >
+                {col.header}
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {paginatedData.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={columns.length} className="p-8 text-center">
+                <StateView
+                  state="empty"
+                  title={emptyTitle || t('table.emptyTitle')}
+                  message={
+                    emptyMessage ||
+                    (search ? t('table.noResults') || 'No records matched your search query.' : t('table.emptyMessage'))
+                  }
+                />
+              </TableCell>
+            </TableRow>
+          ) : (
+            paginatedData.map((row, rIdx) => {
+              const rowKey = keyExtractor
+                ? keyExtractor(row)
+                : keyField && (row as any)[keyField] !== undefined
+                ? String((row as any)[keyField])
+                : (row as any).id || String(rIdx);
 
-                return (
-                  <tr
-                    key={rowKey}
-                    style={{
-                      borderBottom: '1px solid rgba(226, 232, 240, 0.6)',
-                      transition: 'background-color 0.15s ease',
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(241, 245, 249, 0.5)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                  >
-                    {columns.map((col, cIdx) => {
-                      const colKey = col.key || (typeof col.accessor === 'string' ? col.accessor : String(cIdx));
-                      let content: React.ReactNode = null;
-                      if (col.render) {
-                        content = col.render(row);
-                      } else if (typeof col.accessor === 'function') {
-                        content = col.accessor(row);
-                      } else if (col.accessor) {
-                        content = (row as any)[col.accessor];
-                      } else if (col.key) {
-                        content = (row as any)[col.key];
-                      }
+              return (
+                <TableRow key={rowKey}>
+                  {columns.map((col, cIdx) => {
+                    const colKey =
+                      col.key ||
+                      (typeof col.accessor === 'string' ? col.accessor : String(cIdx));
+                    let content: React.ReactNode = null;
+                    if (col.render) {
+                      content = col.render(row);
+                    } else if (typeof col.accessor === 'function') {
+                      content = col.accessor(row);
+                    } else if (col.accessor) {
+                      content = (row as any)[col.accessor];
+                    } else if (col.key) {
+                      content = (row as any)[col.key];
+                    }
 
-                      return (
-                        <td
-                          key={colKey}
-                          style={{
-                            padding: '0.85rem 1rem',
-                            color: 'var(--text-main)',
-                            verticalAlign: 'middle',
-                          }}
-                        >
-                          {content}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+                    return <TableCell key={colKey}>{content}</TableCell>;
+                  })}
+                </TableRow>
+              );
+            })
+          )}
+        </TableBody>
+      </Table>
 
       {/* Pagination Footer */}
       {totalPages > 1 && (
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'flex-end',
-            alignItems: 'center',
-            gap: '0.5rem',
-            padding: '0.5rem 0',
-          }}
-        >
-          <button
-            className="btn-secondary"
-            disabled={currentPage === 1}
-            onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-            aria-label={t('action.previous')}
-            style={{ padding: '0.35rem 0.65rem' }}
-          >
-            <ChevronLeft size={16} />
-          </button>
-          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            {t('table.pageOf', { page: currentPage, total: totalPages })}
+        <div className="flex items-center justify-between gap-3 px-1 py-1 text-xs">
+          <span className="text-slate-500 font-medium">
+            Showing {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, filteredData.length)} of {filteredData.length} records
           </span>
-          <button
-            className="btn-secondary"
-            disabled={currentPage === totalPages}
-            onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-            aria-label={t('action.next')}
-            style={{ padding: '0.35rem 0.65rem' }}
-          >
-            <ChevronRight size={16} />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+              aria-label={t('action.previous')}
+              className="h-8 px-2.5 text-xs"
+            >
+              <ChevronLeft className="w-4 h-4 mr-1" />
+              Previous
+            </Button>
+            <span className="px-2 font-semibold text-slate-700">
+              Page {currentPage} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+              aria-label={t('action.next')}
+              className="h-8 px-2.5 text-xs"
+            >
+              Next
+              <ChevronRight className="w-4 h-4 ml-1" />
+            </Button>
+          </div>
         </div>
       )}
     </div>

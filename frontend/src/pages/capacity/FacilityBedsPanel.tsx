@@ -1,9 +1,15 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { RefreshCw, Clock, Check } from 'lucide-react';
+import { RefreshCw, Clock, Check, BedDouble, AlertCircle, CheckCircle } from 'lucide-react';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { StateView } from '../../components/common/StateView';
+import { PageHeader } from '../../components/ui/page-header';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/card';
+import { Badge } from '../../components/ui/badge';
+import { Button } from '../../components/ui/button';
+import { Input } from '../../components/ui/input';
+import { Alert, AlertTitle, AlertDescription } from '../../components/ui/alert';
 import { FreshnessBadge, OccupancyBar, WARD_TYPES, wardFallback, wardLabelKey, formatDateTime, isNum } from './capacityShared';
 
 interface Ward {
@@ -45,8 +51,6 @@ interface Props {
   facilityId?: string;
 }
 
-const inputStyle: React.CSSProperties = { padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border-color)', width: '100%' };
-
 interface WardFormProps {
   ward: Ward;
   facilityId: string;
@@ -62,7 +66,6 @@ const WardForm: React.FC<WardFormProps> = ({ ward, facilityId, canManage, onSave
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
-  // Keep inputs in sync after a refresh from the server
   useEffect(() => {
     setOccupied(String(ward.occupied_beds));
     setTotal(String(ward.total_beds));
@@ -107,77 +110,109 @@ const WardForm: React.FC<WardFormProps> = ({ ward, facilityId, canManage, onSave
   const errId = `${idBase}-err`;
 
   return (
-    <form onSubmit={submit} className="glass-card" style={{ padding: '1.1rem', borderRadius: '14px', display: 'flex', flexDirection: 'column', gap: '0.75rem' }} noValidate>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '0.5rem', flexWrap: 'wrap' }}>
-        <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>{name}</h4>
-        <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>
-          {t('capacity.wards.avail', '{n} available', { n: ward.available_beds })}
-        </span>
-      </div>
-      <OccupancyBar occupied={ward.occupied_beds} total={ward.total_beds} label={name} />
-      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-        {t('capacity.last_updated', 'Last updated {time}', { time: formatDateTime(ward.updated_at) || t('capacity.not_reported', 'Not reported') })}
-        {ward.last_updated_by ? ` · ${t('capacity.updated_by', 'by user {id}', { id: ward.last_updated_by.slice(0, 8) })}` : ''}
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: canManage ? '1fr 1fr' : '1fr', gap: '0.75rem' }}>
-        <div>
-          <label htmlFor={`${idBase}-occ`} style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-            {t('capacity.form.occupied', 'Occupied beds')}
-          </label>
-          <input
-            id={`${idBase}-occ`} type="number" inputMode="numeric" min={0} max={effectiveTotal} step={1}
-            value={occupied} onChange={(e) => setOccupied(e.target.value)}
-            aria-invalid={!!validation} aria-describedby={validation ? errId : undefined} style={inputStyle}
-          />
+    <Card className="border-border shadow-xs">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base text-foreground font-bold">{name}</CardTitle>
+          <Badge variant="teal" className="text-xs">
+            {t('capacity.wards.avail', '{n} available', { n: ward.available_beds })}
+          </Badge>
         </div>
-        {canManage && (
-          <div>
-            <label htmlFor={`${idBase}-tot`} style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-              {t('capacity.form.total', 'Total beds (capacity)')}
+        <CardDescription className="text-xs">
+          {t('capacity.last_updated', 'Last updated {time}', { time: formatDateTime(ward.updated_at) || t('capacity.not_reported', 'Not reported') })}
+          {ward.last_updated_by ? ` · by user ${ward.last_updated_by.slice(0, 8)}` : ''}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <OccupancyBar occupied={ward.occupied_beds} total={ward.total_beds} label={name} />
+
+        <form onSubmit={submit} className="space-y-3 pt-1" noValidate>
+          <div className={`grid gap-3 ${canManage ? 'grid-cols-2' : 'grid-cols-1'}`}>
+            <div className="space-y-1">
+              <label htmlFor={`${idBase}-occ`} className="text-xs font-semibold text-foreground">
+                {t('capacity.form.occupied', 'Occupied Beds')}
+              </label>
+              <Input
+                id={`${idBase}-occ`}
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={effectiveTotal}
+                step={1}
+                value={occupied}
+                onChange={(e) => setOccupied(e.target.value)}
+                className="text-xs font-mono font-bold"
+                aria-invalid={!!validation}
+                aria-describedby={validation ? errId : undefined}
+              />
+            </div>
+            {canManage && (
+              <div className="space-y-1">
+                <label htmlFor={`${idBase}-tot`} className="text-xs font-semibold text-foreground">
+                  {t('capacity.form.total', 'Total Capacity')}
+                </label>
+                <Input
+                  id={`${idBase}-tot`}
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  step={1}
+                  value={total}
+                  onChange={(e) => setTotal(e.target.value)}
+                  className="text-xs font-mono font-bold"
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <label htmlFor={`${idBase}-note`} className="text-xs font-semibold text-foreground">
+              {t('capacity.form.note', 'Census Note (optional)')}
             </label>
-            <input
-              id={`${idBase}-tot`} type="number" inputMode="numeric" min={0} step={1}
-              value={total} onChange={(e) => setTotal(e.target.value)} style={inputStyle}
+            <Input
+              id={`${idBase}-note`}
+              type="text"
+              maxLength={500}
+              placeholder="e.g. 2 discharges scheduled at 14:00"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              className="text-xs"
             />
           </div>
-        )}
-      </div>
-      <div>
-        <label htmlFor={`${idBase}-note`} style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-          {t('capacity.form.note', 'Note (optional)')}
-        </label>
-        <input id={`${idBase}-note`} type="text" maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} style={inputStyle} />
-      </div>
 
-      {validation && (
-        <div id={errId} role="alert" style={{ fontSize: '0.8rem', color: '#dc2626' }}>{validation}</div>
-      )}
-      <button type="submit" className="btn-primary" disabled={saving || !!validation}
-        style={{ display: 'inline-flex', gap: '0.4rem', alignItems: 'center', justifyContent: 'center', padding: '0.6rem' }}>
-        <Check size={16} aria-hidden="true" />
-        {saving ? t('capacity.form.saving', 'Saving...') : t('capacity.form.save', 'Save occupancy')}
-      </button>
-      {result && (
-        <div
-          role={result.ok ? 'status' : 'alert'}
-          style={{
-            padding: '0.6rem 0.75rem', borderRadius: '8px', fontSize: '0.8rem',
-            backgroundColor: result.ok ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.1)',
-            color: result.ok ? '#047857' : '#b91c1c',
-          }}
-        >
-          {result.msg}
-        </div>
-      )}
-    </form>
+          {validation && (
+            <p id={errId} role="alert" className="text-xs text-rose-600 font-medium">
+              {validation}
+            </p>
+          )}
+
+          <Button
+            type="submit"
+            disabled={saving || !!validation}
+            variant="teal"
+            size="sm"
+            className="w-full gap-1.5 text-xs font-semibold"
+          >
+            <Check className="w-3.5 h-3.5" />
+            {saving ? t('capacity.form.saving', 'Recording Census...') : t('capacity.form.save', 'Save Bed Census')}
+          </Button>
+
+          {result && (
+            <Alert variant={result.ok ? 'default' : 'destructive'} className="py-2 text-xs">
+              {result.ok ? (
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+              ) : (
+                <AlertCircle className="w-3.5 h-3.5" />
+              )}
+              <AlertDescription className="text-xs">{result.msg}</AlertDescription>
+            </Alert>
+          )}
+        </form>
+      </CardContent>
+    </Card>
   );
 };
 
-/**
- * Current beds per ward with occupancy update forms and census history for one facility.
- * Props: optional facilityId (defaults to user.facility_id). Route-agnostic.
- */
 export default function FacilityBedsPanel({ facilityId }: Props) {
   const { t } = useLanguage();
   const { user, hasPermission } = useAuth();
@@ -221,19 +256,17 @@ export default function FacilityBedsPanel({ facilityId }: Props) {
   if (!fid) {
     return (
       <StateView
-        state="empty"
-        title={t('capacity.panel.no_facility', 'No facility assigned')}
+        type="empty"
         message={t('capacity.panel.no_facility_msg', 'Your account is not linked to a facility, so there are no beds to manage.')}
       />
     );
   }
-  if (loading && !beds) return <StateView state="loading" message={t('capacity.panel.loading', 'Loading bed data...')} />;
+  if (loading && !beds) return <StateView type="loading" message={t('capacity.panel.loading', 'Loading facility bed data...')} />;
   if (error) {
     return (
       <StateView
-        state={error.status === 403 ? '403' : error.status === 0 ? 'offline' : 'error'}
-        title={t('capacity.panel.error', 'Could not load bed data')}
-        message={error.detail || undefined}
+        type={error.status === 403 ? '403' : 'error'}
+        message={error.detail || t('capacity.panel.error', 'Could not load bed data')}
         onRetry={() => load()}
       />
     );
@@ -241,104 +274,168 @@ export default function FacilityBedsPanel({ facilityId }: Props) {
   if (!beds) return null;
 
   const wardsSorted = [...beds.wards].sort(
-    (a, b) => (WARD_TYPES as readonly string[]).indexOf(a.ward_type) - (WARD_TYPES as readonly string[]).indexOf(b.ward_type),
+    (a, b) => (WARD_TYPES as readonly string[]).indexOf(a.ward_type as any) - (WARD_TYPES as readonly string[]).indexOf(b.ward_type as any),
   );
   const notReported = t('capacity.not_reported', 'Not reported');
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 800 }}>{t('capacity.panel.title', 'Facility Beds')}</h2>
-          <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap', marginTop: '0.3rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+    <div className="space-y-6">
+      {/* Context-First Standard Page Header */}
+      <PageHeader
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Facility Inpatient Care', href: '/facility' },
+          { label: 'Ward Bed Census' }
+        ]}
+        scopeBadge={{ label: 'Facility Inpatient Ward', variant: 'teal' }}
+        roleBadge={{ label: canUpdate ? 'Census Recording Active' : 'Read Only', variant: canUpdate ? 'success' : 'outline' }}
+        title={t('capacity.panel.title', 'Facility Ward Bed Census')}
+        description="Daily occupancy log and available capacity management across inpatient care wards."
+        actions={
+          <div className="flex items-center gap-2">
             <FreshnessBadge status={beds.status} />
-            <span style={{ display: 'inline-flex', gap: '0.3rem', alignItems: 'center' }}>
-              <Clock size={13} aria-hidden="true" />
-              {t('capacity.last_updated', 'Last updated {time}', { time: formatDateTime(beds.last_updated_at) || t('capacity.never', 'Never reported') })}
-            </span>
+            <Button
+              onClick={() => load()}
+              disabled={loading}
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-xs"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              {t('capacity.refresh', 'Refresh')}
+            </Button>
           </div>
-        </div>
-        <button className="btn-secondary" onClick={() => load()} disabled={loading}
-          style={{ display: 'inline-flex', gap: '0.4rem', alignItems: 'center', fontSize: '0.825rem', padding: '0.5rem 0.9rem' }}>
-          <RefreshCw size={14} aria-hidden="true" /> {t('capacity.refresh', 'Refresh')}
-        </button>
+        }
+      />
+
+      {/* KPI Overview */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card className="border-border shadow-xs hover:border-teal-300 transition-colors">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t('capacity.kpi.total', 'Total Beds Reported')}</p>
+              <h3 className="text-2xl font-bold text-foreground mt-1">{isNum(beds.total_beds) ? beds.total_beds : notReported}</h3>
+              <p className="text-xs text-muted-foreground mt-1">Authorized bed strength</p>
+            </div>
+            <div className="w-10 h-10 rounded-lg bg-teal-50 text-teal-700 flex items-center justify-center border border-teal-100">
+              <BedDouble className="w-5 h-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border shadow-xs hover:border-amber-300 transition-colors">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t('capacity.kpi.occupied', 'Occupied Beds')}</p>
+              <h3 className="text-2xl font-bold text-foreground mt-1">{isNum(beds.occupied_beds) ? beds.occupied_beds : notReported}</h3>
+              <p className="text-xs text-amber-700 font-medium mt-1">Active inpatient census</p>
+            </div>
+            <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center border border-amber-100">
+              <BedDouble className="w-5 h-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border shadow-xs hover:border-emerald-300 transition-colors">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t('capacity.kpi.available', 'Available Beds')}</p>
+              <h3 className="text-2xl font-bold text-emerald-700 mt-1">{isNum(beds.available_beds) ? beds.available_beds : notReported}</h3>
+              <p className="text-xs text-emerald-700 font-medium mt-1">Ready for immediate admission</p>
+            </div>
+            <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-100">
+              <CheckCircle className="w-5 h-5" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.75rem' }}>
-        {[
-          { k: 'total', label: t('capacity.kpi.total', 'Total beds reported'), v: beds.total_beds },
-          { k: 'occ', label: t('capacity.kpi.occupied', 'Occupied beds'), v: beds.occupied_beds },
-          { k: 'avail', label: t('capacity.kpi.available', 'Available beds'), v: beds.available_beds },
-        ].map((x) => (
-          <div key={x.k} className="glass-card" style={{ padding: '0.9rem 1rem', borderRadius: '12px' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>{x.label}</div>
-            <div style={{ fontSize: '1.4rem', fontWeight: 800 }}>{isNum(x.v) ? x.v : notReported}</div>
-          </div>
-        ))}
-      </div>
-
+      {/* Ward Cards / Forms */}
       {wardsSorted.length === 0 ? (
         <StateView
-          state="empty"
-          title={t('capacity.panel.no_wards', 'No wards registered')}
+          type="empty"
           message={t('capacity.panel.no_wards_msg', 'No bed data has been reported for this facility. A bed-inventory manager must register its wards.')}
         />
       ) : canUpdate ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {wardsSorted.map((w) => (
             <WardForm key={w.ward_type} ward={w} facilityId={fid} canManage={canManage} onSaved={() => load(true)} />
           ))}
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {wardsSorted.map((w) => {
             const name = t(wardLabelKey(w.ward_type), wardFallback(w.ward_type));
             return (
-              <div key={w.ward_type} className="glass-card" style={{ padding: '1rem', borderRadius: '14px' }}>
-                <div style={{ fontWeight: 700, marginBottom: '0.4rem' }}>{name}</div>
-                <OccupancyBar occupied={w.occupied_beds} total={w.total_beds} label={name} />
-              </div>
+              <Card key={w.ward_type} className="border-border shadow-xs">
+                <CardHeader className="pb-3">
+                  <div className="flex justify-between items-center">
+                    <CardTitle className="text-base text-foreground font-bold">{name}</CardTitle>
+                    <Badge variant="teal">{w.available_beds} available</Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <OccupancyBar occupied={w.occupied_beds} total={w.total_beds} label={name} />
+                </CardContent>
+              </Card>
             );
           })}
         </div>
       )}
 
-      <div className="glass-card" style={{ padding: '1.25rem', borderRadius: '14px' }}>
-        <h3 style={{ margin: '0 0 0.75rem 0', fontSize: '1.05rem', fontWeight: 700 }}>
-          {t('capacity.history.title', 'Recent updates')}
-        </h3>
-        {historyError ? (
-          <StateView state="error" title={t('capacity.history.error', 'Could not load history')} message={historyError} onRetry={() => load(true)} />
-        ) : history.length === 0 ? (
-          <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-muted)' }}>
-            {t('capacity.history.empty', 'No updates recorded yet.')}
-          </p>
-        ) : (
-          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-            {history.map((h) => (
-              <li key={h.id} style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.6rem', fontSize: '0.85rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  <strong>{t(wardLabelKey(h.ward_type), wardFallback(h.ward_type))}</strong>
-                  <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{formatDateTime(h.recorded_at) || notReported}</span>
-                </div>
-                <div>
-                  {t('capacity.history.change', 'Occupied {prev} to {occ} of {total}', {
-                    prev: isNum(h.previous_occupied_beds) ? h.previous_occupied_beds : '-',
-                    occ: h.occupied_beds,
-                    total: h.total_beds,
-                  })}
-                </div>
-                {h.note && <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{h.note}</div>}
-                {h.recorded_by && (
-                  <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-                    {t('capacity.updated_by', 'by user {id}', { id: h.recorded_by.slice(0, 8) })}
+      {/* Recent Updates History Log */}
+      <Card className="border-border shadow-xs">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base text-foreground flex items-center gap-2">
+            <Clock className="w-4 h-4 text-teal-600" />
+            {t('capacity.history.title', 'Recent Census Updates')}
+          </CardTitle>
+          <CardDescription>
+            Audit log of ward bed census entries submitted by clinical nursing staff.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {historyError ? (
+            <Alert variant="destructive" className="text-xs">
+              <AlertDescription>{historyError}</AlertDescription>
+            </Alert>
+          ) : history.length === 0 ? (
+            <p className="text-xs text-muted-foreground italic">
+              {t('capacity.history.empty', 'No updates recorded yet.')}
+            </p>
+          ) : (
+            <div className="divide-y divide-border">
+              {history.map((h) => (
+                <div key={h.id} className="py-2.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs">
+                  <div>
+                    <div className="font-semibold text-foreground">
+                      {t(wardLabelKey(h.ward_type), wardFallback(h.ward_type))}
+                    </div>
+                    <div className="text-muted-foreground">
+                      {t('capacity.history.change', 'Occupied {prev} to {occ} of {total}', {
+                        prev: isNum(h.previous_occupied_beds) ? h.previous_occupied_beds : '-',
+                        occ: h.occupied_beds,
+                        total: h.total_beds,
+                      })}
+                      {h.note && <span className="ml-2 italic text-foreground">"{h.note}"</span>}
+                    </div>
                   </div>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+                  <div className="text-right sm:self-center">
+                    <div className="text-[11px] text-muted-foreground font-mono">
+                      {formatDateTime(h.recorded_at) || notReported}
+                    </div>
+                    {h.recorded_by && (
+                      <div className="text-[10px] text-muted-foreground">
+                        {t('capacity.updated_by', 'by user {id}', { id: h.recorded_by.slice(0, 8) })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

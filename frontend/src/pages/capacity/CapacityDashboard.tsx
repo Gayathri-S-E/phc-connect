@@ -1,9 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { BedDouble, Users, RefreshCw, Clock } from 'lucide-react';
+import { BedDouble, Users, RefreshCw, Clock, AlertTriangle, Building2, CheckCircle } from 'lucide-react';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { StateView } from '../../components/common/StateView';
+import { PageHeader } from '../../components/ui/page-header';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/card';
+import { Badge } from '../../components/ui/badge';
+import { Button } from '../../components/ui/button';
+import { Input } from '../../components/ui/input';
+import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '../../components/ui/table';
 import { FreshnessBadge, OccupancyBar, WARD_TYPES, wardFallback, wardLabelKey, formatDateTime, isNum } from './capacityShared';
 
 type Level = 'national' | 'state' | 'district';
@@ -40,24 +46,6 @@ interface Rollup {
   flagged_truncated: boolean;
 }
 
-const card: React.CSSProperties = { padding: '1.25rem', borderRadius: '14px' };
-const inputStyle: React.CSSProperties = { padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border-color)', minWidth: '10rem' };
-
-const Kpi: React.FC<{ label: string; value: string; hint?: string; icon: React.ReactNode }> = ({ label, value, hint, icon }) => (
-  <div className="glass-card" style={{ ...card, display: 'flex', gap: '0.85rem', alignItems: 'flex-start' }}>
-    <div style={{ color: 'var(--primary)' }} aria-hidden="true">{icon}</div>
-    <div style={{ minWidth: 0 }}>
-      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>{label}</div>
-      <div style={{ fontSize: '1.6rem', fontWeight: 800, lineHeight: 1.2 }}>{value}</div>
-      {hint && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>{hint}</div>}
-    </div>
-  </div>
-);
-
-/**
- * Bed availability and staff attendance roll-up. Route-agnostic, takes no props.
- * Picks the widest roll-up the user's permissions suggest and falls back to narrower ones on 403.
- */
 export default function CapacityDashboard() {
   const { t } = useLanguage();
   const { user, hasPermission } = useAuth();
@@ -68,8 +56,7 @@ export default function CapacityDashboard() {
     if (hasPermission('governance.state.view')) list.push('state');
     if (hasPermission('governance.district.view')) list.push('district');
     return list;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, hasPermission]);
 
   const [stateFilter, setStateFilter] = useState(user?.state || '');
   const [districtFilter, setDistrictFilter] = useState(user?.district || '');
@@ -101,7 +88,7 @@ export default function CapacityDashboard() {
         return;
       }
       last = { status: res.error.status, detail: res.error.detail };
-      if (res.error.status !== 403) break; // only fall back to a narrower level on 403
+      if (res.error.status !== 403) break;
     }
     setData(null);
     setLevel(null);
@@ -111,7 +98,6 @@ export default function CapacityDashboard() {
 
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const levelLabel = (lv: Level) =>
@@ -123,60 +109,71 @@ export default function CapacityDashboard() {
   const pct = (v: number | null | undefined) => (isNum(v) ? `${v}%` : notReported);
 
   if (loading && !data) {
-    return <StateView state="loading" message={t('capacity.loading', 'Loading capacity data...')} />;
+    return <StateView type="loading" message={t('capacity.loading', 'Loading capacity data...')} />;
   }
 
-  // State/district filters are needed only when the widest available level requires a jurisdiction choice
   const needsFilters = candidates.length > 0 && candidates[0] !== 'national';
   const filters = needsFilters ? (
-    <form
-      onSubmit={(e) => { e.preventDefault(); load(); }}
-      style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}
-    >
-      <div>
-        <label htmlFor="cap-state" style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-          {t('capacity.filter.state', 'State')}
-        </label>
-        <input id="cap-state" value={stateFilter} onChange={(e) => setStateFilter(e.target.value)} style={inputStyle} />
-      </div>
-      {candidates[0] === 'district' && (
-        <div>
-          <label htmlFor="cap-district" style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>
-            {t('capacity.filter.district', 'District')}
-          </label>
-          <input id="cap-district" value={districtFilter} onChange={(e) => setDistrictFilter(e.target.value)} style={inputStyle} />
-        </div>
-      )}
-      <button type="submit" className="btn-secondary" style={{ padding: '0.5rem 0.9rem', fontSize: '0.825rem' }}>
-        {t('capacity.filter.apply', 'Apply')}
-      </button>
-    </form>
+    <Card className="border-border shadow-xs">
+      <CardContent className="p-4">
+        <form
+          onSubmit={(e) => { e.preventDefault(); load(); }}
+          className="flex flex-wrap items-end gap-3"
+        >
+          <div className="space-y-1">
+            <label htmlFor="cap-state" className="text-xs font-semibold text-foreground">
+              {t('capacity.filter.state', 'State')}
+            </label>
+            <Input 
+              id="cap-state" 
+              value={stateFilter} 
+              onChange={(e) => setStateFilter(e.target.value)} 
+              className="text-xs h-9 w-40" 
+            />
+          </div>
+          {candidates[0] === 'district' && (
+            <div className="space-y-1">
+              <label htmlFor="cap-district" className="text-xs font-semibold text-foreground">
+                {t('capacity.filter.district', 'District')}
+              </label>
+              <Input 
+                id="cap-district" 
+                value={districtFilter} 
+                onChange={(e) => setDistrictFilter(e.target.value)} 
+                className="text-xs h-9 w-40" 
+              />
+            </div>
+          )}
+          <Button type="submit" variant="secondary" size="sm" className="h-9 text-xs">
+            {t('capacity.filter.apply', 'Apply Filters')}
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   ) : null;
 
   if (error) {
     if (error.status === 403) {
       return (
         <StateView
-          state="403"
-          title={t('capacity.forbidden.title', 'Capacity view not available')}
+          type="403"
           message={t('capacity.forbidden.message', 'Your role does not have access to district, state or national capacity roll-ups.')}
         />
       );
     }
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      <div className="space-y-4">
         {filters}
         <StateView
-          state={error.status === 0 ? 'offline' : 'error'}
-          title={t('capacity.error.title', 'Could not load capacity data')}
-          message={error.detail || undefined}
+          type="error"
+          message={error.detail || t('capacity.error.title', 'Could not load capacity data')}
           onRetry={load}
         />
       </div>
     );
   }
 
-  if (!data || !level) return <StateView state="empty" title={t('capacity.empty', 'No capacity data')} />;
+  if (!data || !level) return <StateView type="empty" message={t('capacity.empty', 'No capacity data available for this scope.')} />;
 
   const b = data.beds;
   const s = data.staff;
@@ -189,140 +186,236 @@ export default function CapacityDashboard() {
   const noBedData = b.facilities_fresh + b.facilities_stale === 0;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 800 }}>
-            {t('capacity.title', 'Bed and Staff Capacity')} - {levelLabel(level)}
-          </h2>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', gap: '0.4rem', alignItems: 'center', marginTop: '0.2rem' }}>
-            <Clock size={13} aria-hidden="true" />
-            <span>
-              {data.scope ? `${data.scope} · ` : ''}
-              {t('capacity.as_of', 'As of {time}', { time: asOf || notReported })}
-            </span>
-          </div>
-        </div>
-        <button
-          className="btn-secondary"
-          onClick={load}
-          disabled={loading}
-          style={{ display: 'inline-flex', gap: '0.4rem', alignItems: 'center', fontSize: '0.825rem', padding: '0.5rem 0.9rem' }}
-        >
-          <RefreshCw size={14} aria-hidden="true" /> {t('capacity.refresh', 'Refresh')}
-        </button>
-      </div>
+    <div className="space-y-6">
+      {/* Context-First Page Header */}
+      <PageHeader
+        breadcrumbs={[
+          { label: 'Home', href: '/' },
+          { label: 'Operations & Capacity', href: '/capacity' },
+          { label: `${levelLabel(level)} Roll-Up` }
+        ]}
+        scopeBadge={{ label: `${data.scope || levelLabel(level)} Scope`, variant: 'teal' }}
+        roleBadge={{ label: 'Capacity Intelligence', variant: 'outline' }}
+        title={`${t('capacity.title', 'Bed and Staff Capacity')} — ${levelLabel(level)}`}
+        description={`Real-time occupancy status, clinical staffing availability, and telemetry freshness across ${data.facilities} network facilities.`}
+        actions={
+          <Button
+            onClick={load}
+            disabled={loading}
+            variant="outline"
+            size="sm"
+            className="gap-1.5 text-xs"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            {t('capacity.refresh', 'Refresh Data')}
+          </Button>
+        }
+      />
 
       {filters}
 
-      <div aria-live="polite" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '1rem' }}>
-        <Kpi icon={<BedDouble size={22} />} label={t('capacity.kpi.total', 'Total beds reported')} value={noBedData ? notReported : num(b.total)}
-          hint={t('capacity.kpi.facilities', '{n} facilities in scope', { n: data.facilities })} />
-        <Kpi icon={<BedDouble size={22} />} label={t('capacity.kpi.occupied', 'Occupied beds')} value={noBedData ? notReported : num(b.occupied)}
-          hint={t('capacity.kpi.occ_pct', 'Occupancy {pct}', { pct: pct(b.occupancy_pct) })} />
-        <Kpi icon={<BedDouble size={22} />} label={t('capacity.kpi.available', 'Available beds')} value={noBedData ? notReported : num(b.available)}
-          hint={t('capacity.kpi.fresh_avail', '{n} available in up-to-date facilities', { n: num(b.fresh_available) })} />
-        <Kpi icon={<Users size={22} />} label={t('capacity.kpi.staff', 'Staff present today')}
-          value={s.assigned_in_reporting_facilities > 0 ? `${s.present_today} / ${s.assigned_in_reporting_facilities}` : notReported}
-          hint={t('capacity.kpi.staff_pct', 'Availability {pct} (reporting facilities only)', { pct: pct(s.availability_pct) })} />
+      {/* KPI Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="border-border shadow-xs hover:border-teal-300 transition-colors">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t('capacity.kpi.total', 'Total Beds Reported')}</p>
+              <h3 className="text-2xl font-bold text-foreground mt-1">{noBedData ? notReported : num(b.total)}</h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                {t('capacity.kpi.facilities', '{n} facilities in scope', { n: data.facilities })}
+              </p>
+            </div>
+            <div className="w-10 h-10 rounded-lg bg-teal-50 text-teal-700 flex items-center justify-center border border-teal-100">
+              <BedDouble className="w-5 h-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border shadow-xs hover:border-amber-300 transition-colors">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t('capacity.kpi.occupied', 'Occupied Beds')}</p>
+              <h3 className="text-2xl font-bold text-foreground mt-1">{noBedData ? notReported : num(b.occupied)}</h3>
+              <p className="text-xs text-amber-700 font-medium mt-1">
+                {t('capacity.kpi.occ_pct', 'Occupancy {pct}', { pct: pct(b.occupancy_pct) })}
+              </p>
+            </div>
+            <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center border border-amber-100">
+              <BedDouble className="w-5 h-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border shadow-xs hover:border-emerald-300 transition-colors">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t('capacity.kpi.available', 'Available Beds')}</p>
+              <h3 className="text-2xl font-bold text-emerald-700 mt-1">{noBedData ? notReported : num(b.available)}</h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                {t('capacity.kpi.fresh_avail', '{n} available in fresh units', { n: num(b.fresh_available) })}
+              </p>
+            </div>
+            <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-100">
+              <CheckCircle className="w-5 h-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border shadow-xs hover:border-sky-300 transition-colors">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t('capacity.kpi.staff', 'Staff Present Today')}</p>
+              <h3 className="text-2xl font-bold text-foreground mt-1">
+                {s.assigned_in_reporting_facilities > 0 ? `${s.present_today} / ${s.assigned_in_reporting_facilities}` : notReported}
+              </h3>
+              <p className="text-xs text-sky-700 font-medium mt-1">
+                {t('capacity.kpi.staff_pct', 'Availability {pct}', { pct: pct(s.availability_pct) })}
+              </p>
+            </div>
+            <div className="w-10 h-10 rounded-lg bg-sky-50 text-sky-700 flex items-center justify-center border border-sky-100">
+              <Users className="w-5 h-5" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      <div className="glass-card" style={card}>
-        <h3 style={{ margin: '0 0 0.75rem 0', fontSize: '1.05rem', fontWeight: 700 }}>
-          {t('capacity.data_quality', 'Data completeness')}
-        </h3>
-        <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', gap: '0.5rem 1.5rem', flexWrap: 'wrap', fontSize: '0.85rem' }}>
-          <li>{t('capacity.dq.fresh', 'Bed data up to date: {n}', { n: b.facilities_fresh })}</li>
-          <li>{t('capacity.dq.stale', 'Bed data stale: {n}', { n: b.facilities_stale })}</li>
-          <li>{t('capacity.dq.no_data', 'No bed data: {n}', { n: b.facilities_no_data })}</li>
-        </ul>
-        <p style={{ margin: '0.6rem 0 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-          {t('capacity.dq.note', 'Totals include only recorded values. Facilities with no data are not counted as zero beds.')}
-        </p>
-      </div>
-
-      <div className="glass-card" style={card}>
-        <h3 style={{ margin: '0 0 0.75rem 0', fontSize: '1.05rem', fontWeight: 700 }}>
-          {t('capacity.wards.title', 'Ward breakdown')}
-        </h3>
-        {wardKeys.length === 0 ? (
-          <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.875rem' }}>{notReported}</p>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
-            {wardKeys.map((w) => {
-              const v = byWard[w];
-              const name = t(wardLabelKey(w), wardFallback(w));
-              return (
-                <div key={w}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 600, fontSize: '0.875rem', marginBottom: '0.3rem' }}>
-                    <span>{name}</span>
-                    <span>{t('capacity.wards.avail', '{n} available', { n: v.available })}</span>
-                  </div>
-                  <OccupancyBar occupied={v.occupied} total={v.total} label={name} />
-                </div>
-              );
-            })}
+      {/* Data Completeness & Reporting Freshness */}
+      <Card className="border-border shadow-xs">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base text-foreground flex items-center gap-2">
+            <Clock className="w-4 h-4 text-teal-600" />
+            {t('capacity.data_quality', 'Data Completeness & Freshness')}
+          </CardTitle>
+          <CardDescription>
+            {t('capacity.as_of', 'As of {time}', { time: asOf || notReported })}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <div className="flex flex-wrap gap-4 text-xs font-semibold">
+            <div className="flex items-center gap-1.5 text-emerald-700">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span>{t('capacity.dq.fresh', 'Bed data up to date: {n}', { n: b.facilities_fresh })}</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-amber-700">
+              <span className="w-2 h-2 rounded-full bg-amber-500" />
+              <span>{t('capacity.dq.stale', 'Bed data stale: {n}', { n: b.facilities_stale })}</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-slate-500">
+              <span className="w-2 h-2 rounded-full bg-slate-300" />
+              <span>{t('capacity.dq.no_data', 'No bed data: {n}', { n: b.facilities_no_data })}</span>
+            </div>
           </div>
-        )}
-      </div>
-
-      <div className="glass-card" style={card}>
-        <h3 style={{ margin: '0 0 0.25rem 0', fontSize: '1.05rem', fontWeight: 700 }}>
-          {t('capacity.flagged.title', 'Facilities needing attention')} ({data.flagged_facilities_count})
-        </h3>
-        <p style={{ margin: '0 0 0.75rem 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-          {t('capacity.flagged.note', 'Bed or attendance data is missing or older than {h} hours.', { h: data.stale_after_hours ?? 24 })}
-        </p>
-        {data.flagged_facilities.length === 0 ? (
-          <StateView
-            state="empty"
-            title={t('capacity.flagged.none', 'All facilities are reporting')}
-            message={t('capacity.flagged.none_msg', 'No missing or stale data in this scope.')}
-          />
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', minWidth: '560px' }}>
-              <thead>
-                <tr style={{ textAlign: 'left', borderBottom: '1px solid var(--border-color)' }}>
-                  <th scope="col" style={{ padding: '0.5rem' }}>{t('capacity.col.facility', 'Facility')}</th>
-                  <th scope="col" style={{ padding: '0.5rem' }}>{t('capacity.col.beds', 'Bed data')}</th>
-                  <th scope="col" style={{ padding: '0.5rem' }}>{t('capacity.col.attendance', 'Attendance')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.flagged_facilities.map((f) => (
-                  <tr key={f.facility_id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                    <th scope="row" style={{ padding: '0.5rem', textAlign: 'left', fontWeight: 600 }}>
-                      {f.facility_name}
-                      <div style={{ fontWeight: 400, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                        {[f.district, f.state].filter(Boolean).join(', ')}
-                      </div>
-                    </th>
-                    <td style={{ padding: '0.5rem' }}>
-                      <FreshnessBadge status={f.beds_status} />
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                        {formatDateTime(f.beds_last_updated_at) || t('capacity.never', 'Never reported')}
-                      </div>
-                    </td>
-                    <td style={{ padding: '0.5rem' }}>
-                      <FreshnessBadge status={f.attendance_status} />
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                        {formatDateTime(f.last_attendance_at) || t('capacity.never', 'Never reported')}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        {data.flagged_truncated && (
-          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-            {t('capacity.flagged.truncated', 'List truncated; showing the first {n} of {total}.',
-              { n: data.flagged_facilities.length, total: data.flagged_facilities_count })}
+          <p className="text-[11px] text-muted-foreground pt-1">
+            {t('capacity.dq.note', 'Totals include only recorded values. Facilities with no data are not counted as zero beds.')}
           </p>
-        )}
-      </div>
+        </CardContent>
+      </Card>
+
+      {/* Ward Breakdown */}
+      <Card className="border-border shadow-xs">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base text-foreground">
+            {t('capacity.wards.title', 'Ward Breakdown')}
+          </CardTitle>
+          <CardDescription>
+            Occupancy breakdown across clinical care departments.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {wardKeys.length === 0 ? (
+            <p className="text-sm text-muted-foreground italic">{notReported}</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {wardKeys.map((w) => {
+                const v = byWard[w];
+                const name = t(wardLabelKey(w), wardFallback(w));
+                return (
+                  <div key={w} className="p-3.5 bg-muted/40 rounded-lg border border-border space-y-2">
+                    <div className="flex justify-between items-center text-xs font-bold text-foreground">
+                      <span>{name}</span>
+                      <span className="text-emerald-700">
+                        {t('capacity.wards.avail', '{n} available', { n: v.available })}
+                      </span>
+                    </div>
+                    <OccupancyBar occupied={v.occupied} total={v.total} label={name} />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Facilities Needing Attention */}
+      <Card className="border-border shadow-xs">
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base text-foreground flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600" />
+                {t('capacity.flagged.title', 'Facilities Needing Attention')} ({data.flagged_facilities_count})
+              </CardTitle>
+              <CardDescription>
+                {t('capacity.flagged.note', 'Bed or attendance data is missing or older than {h} hours.', { h: data.stale_after_hours ?? 24 })}
+              </CardDescription>
+            </div>
+            {data.flagged_facilities.length > 0 && (
+              <Badge variant="warning">{data.flagged_facilities_count} Flagged</Badge>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {data.flagged_facilities.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground text-sm">
+              <CheckCircle className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+              <p className="font-semibold text-foreground">{t('capacity.flagged.none', 'All facilities are reporting')}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{t('capacity.flagged.none_msg', 'No missing or stale data in this scope.')}</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t('capacity.col.facility', 'Facility')}</TableHead>
+                    <TableHead>{t('capacity.col.beds', 'Bed Data Status')}</TableHead>
+                    <TableHead>{t('capacity.col.attendance', 'Attendance Status')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.flagged_facilities.map((f) => (
+                    <TableRow key={f.facility_id}>
+                      <TableCell>
+                        <div className="font-semibold text-foreground text-xs">{f.facility_name}</div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {[f.district, f.state].filter(Boolean).join(', ')}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <FreshnessBadge status={f.beds_status} />
+                        <div className="text-[11px] text-muted-foreground mt-1">
+                          {formatDateTime(f.beds_last_updated_at) || t('capacity.never', 'Never reported')}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <FreshnessBadge status={f.attendance_status} />
+                        <div className="text-[11px] text-muted-foreground mt-1">
+                          {formatDateTime(f.last_attendance_at) || t('capacity.never', 'Never reported')}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+          {data.flagged_truncated && (
+            <div className="p-3 text-[11px] text-muted-foreground text-center border-t">
+              {t('capacity.flagged.truncated', 'List truncated; showing the first {n} of {total}.',
+                { n: data.flagged_facilities.length, total: data.flagged_facilities_count })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

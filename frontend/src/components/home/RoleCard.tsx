@@ -1,29 +1,42 @@
 import React from 'react';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Loader2 } from 'lucide-react';
 import { formatRoleName } from '../../utils/formatters';
+import { Badge } from '../ui/badge';
 
-/* Category → accent colour map */
-const ACCENTS = {
-  clinical: { border: '#0d9488', iconBg: 'rgba(13,148,136,0.15)', label: '#0d9488' },
-  supply:   { border: '#0284c7', iconBg: 'rgba(2,132,199,0.15)',  label: '#0284c7' },
-  admin:    { border: '#7c3aed', iconBg: 'rgba(124,58,237,0.15)', label: '#7c3aed' },
+/* Category → accent styling (Med2Us Signature Palette) */
+const ACCENT_STYLES = {
+  clinical: {
+    border: 'border-l-[#5aa9e6] hover:border-l-[#3b8ec8]',
+    iconBg: 'bg-[#f0f7fe] text-[#257bb5] border border-[#7fc8f8]/60',
+    label: 'text-[#257bb5]',
+  },
+  supply: {
+    border: 'border-l-[#7fc8f8] hover:border-l-[#5aa9e6]',
+    iconBg: 'bg-[#f0f9ff] text-[#257bb5] border border-[#7fc8f8]/60',
+    label: 'text-[#257bb5]',
+  },
+  admin: {
+    border: 'border-l-[#ff6392] hover:border-l-[#e04f7b]',
+    iconBg: 'bg-[#fff0f5] text-[#d93b6e] border border-[#ff6392]/40',
+    label: 'text-[#d93b6e]',
+  },
 };
 
 interface Props {
-  code:       string;
-  index:      number;
-  account:    { email: string; name: string; role: string; defaultPath: string };
-  category:   'clinical' | 'supply' | 'admin';
-  icon:       React.ReactNode;
+  code: string;
+  index: number;
+  account: { email: string; name: string; role: string; defaultPath: string };
+  category: 'clinical' | 'supply' | 'admin';
+  icon: React.ReactNode;
   isDisabled?: boolean;
-  isLoading?:  boolean;
-  onSelect:   (code: string) => void;
+  isLoading?: boolean;
+  onSelect: (code: string) => void;
 }
 
 export const RoleCard: React.FC<Props> = ({
   code, index, account, category, icon, isDisabled = false, isLoading = false, onSelect,
 }) => {
-  const accent = ACCENTS[category];
+  const accent = ACCENT_STYLES[category];
 
   return (
     <button
@@ -31,59 +44,46 @@ export const RoleCard: React.FC<Props> = ({
       onClick={() => onSelect(code)}
       disabled={isDisabled}
       aria-label={`Sign in as ${formatRoleName(code)}`}
-      className="flex flex-col p-5 rounded-2xl text-left h-full w-full transition duration-200 cursor-pointer
-                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2
-                 disabled:opacity-50 disabled:cursor-not-allowed group"
-      style={{
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        border: '1px solid rgba(255,255,255,0.1)',
-        borderLeft: `4px solid ${accent.border}`,
-      }}
-      onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgba(255,255,255,0.1)'; }}
-      onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgba(255,255,255,0.05)'; }}
+      className={`flex flex-col p-5 rounded-xl text-left h-full w-full transition-all duration-200 cursor-pointer
+                 bg-white hover:bg-slate-50/80 border border-slate-200/90 hover:border-slate-300 border-l-4 ${accent.border}
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2
+                 disabled:opacity-50 disabled:cursor-not-allowed group shadow-2xs hover:shadow-md`}
     >
       {/* Top row: icon + role number chip */}
-      <div className="flex items-center justify-between mb-3 min-w-0">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: accent.iconBg }}>
+      <div className="flex items-center justify-between mb-3 w-full">
+        <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${accent.iconBg}`}>
           {icon}
         </div>
-        <span
-          className="text-[11px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-md"
-          style={{ backgroundColor: 'rgba(255,255,255,0.08)', color: '#94a3b8' }}
-        >
+        <span className="text-[11px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200/60">
           ROLE {String(index + 1).padStart(2, '0')}
         </span>
       </div>
 
-      {/* Role title — line-clamp-2, min-h for 2 lines so cards align */}
-      <h3
-        className="text-base font-semibold text-white leading-snug mb-1"
-        style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: '2.75rem' }}
-      >
+      {/* Role title */}
+      <h3 className="text-sm font-extrabold text-slate-900 leading-snug mb-1 line-clamp-2 min-h-[2.5rem]">
         {formatRoleName(code)}
       </h3>
 
       {/* Persona name */}
-      <p className="text-sm text-slate-300 truncate mb-1 min-w-0">{account.name}</p>
+      <p className="text-xs text-slate-700 font-semibold truncate mb-1 w-full">{account.name}</p>
 
-      {/* Email — mono, truncated, never overflows */}
-      <p
-        className="text-xs text-slate-400 truncate min-w-0 block"
-        style={{ fontFamily: "'JetBrains Mono', monospace" }}
-        title={account.email}
-      >
+      {/* Email & Demo Credential note */}
+      <p className="text-[11px] font-mono text-slate-500 truncate w-full" title={account.email}>
         {account.email}
+      </p>
+      <p className="text-[10px] font-mono text-slate-400 truncate w-full mt-0.5">
+        Credential: Demo@Health2026
       </p>
 
       {/* "Sign in as →" pinned bottom */}
-      <div className="mt-auto pt-4 flex items-center justify-between border-t min-w-0" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
-        <span className="text-xs font-semibold" style={{ color: accent.label }}>
+      <div className="mt-auto pt-3 flex items-center justify-between border-t border-slate-100 w-full">
+        <span className={`text-xs font-bold ${accent.label}`}>
           {isLoading ? 'Authenticating...' : 'Sign in as →'}
         </span>
         {isLoading ? (
-          <div className="w-3.5 h-3.5 border-2 border-sky-400 border-t-transparent rounded-full animate-spin shrink-0" />
+          <Loader2 className="w-3.5 h-3.5 text-sky-600 animate-spin shrink-0" />
         ) : (
-          <ArrowRight className="w-3.5 h-3.5 shrink-0 opacity-60 group-hover:opacity-100 transition" style={{ color: accent.label }} />
+          <ArrowRight className={`w-3.5 h-3.5 shrink-0 opacity-70 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all ${accent.label}`} />
         )}
       </div>
     </button>

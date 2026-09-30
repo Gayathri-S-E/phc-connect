@@ -239,11 +239,17 @@ async def list_my_feedback(
 )
 async def track_feedback_complaint(
     tracking_number: str,
+    current_user: AuthenticatedUserContext = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
 ):
-    """Track resolution status of a submitted feedback/complaint by its CMP-YYYYMM-XXXXX tracking code."""
+    """Track resolution status of a submitted feedback/complaint by its CMP-YYYYMM-XXXXX tracking code.
+    Authenticated; a patient may only view their own complaint (prevents enumeration of others' grievances)."""
     service = HealthcareService(session)
     complaint = await service.get_feedback_complaint_by_tracking(tracking_number)
+    if "PATIENT" in current_user.roles:
+        patient = await _get_authenticated_patient(current_user, service)
+        if complaint.patient_id != patient.id:
+            raise ResourceNotFoundException("Feedback/complaint")
     return DataResponse(data=FeedbackComplaintResponse.model_validate(complaint))
 
 

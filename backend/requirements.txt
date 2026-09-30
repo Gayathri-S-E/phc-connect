@@ -17,3 +17,5 @@ pytest-asyncio>=0.23.0,<1.0.0
 aiosqlite>=0.20.0,<1.0.0
 asyncpg
 psycopg[binary]
+google-auth>=2.30.0,<3.0.0
+requests>=2.31.0,<3.0.0

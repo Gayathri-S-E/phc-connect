@@ -1,6 +1,7 @@
 import React from 'react';
 import { AlertOctagon, AlertTriangle, AlertCircle, CheckCircle } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
+import { Badge } from '../../components/ui/badge';
 import type { ApiError } from '../../services/types';
 
 export const TIER_ORDER: Record<string, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
@@ -20,28 +21,40 @@ export const advisoryStyle: React.CSSProperties = {
   fontSize: '0.9rem',
 };
 
-const TIER_STYLE: Record<string, { bg: string; fg: string; Icon: React.ElementType }> = {
-  CRITICAL: { bg: 'rgba(239,68,68,0.15)', fg: '#b91c1c', Icon: AlertOctagon },
-  HIGH: { bg: 'rgba(245,158,11,0.18)', fg: '#b45309', Icon: AlertTriangle },
-  MEDIUM: { bg: 'rgba(59,130,246,0.15)', fg: '#1d4ed8', Icon: AlertCircle },
-  LOW: { bg: 'rgba(16,185,129,0.15)', fg: '#047857', Icon: CheckCircle },
-};
-
 /** Tier badge: colour + icon + text (never colour alone). */
 export const TierBadge: React.FC<{ tier: string }> = ({ tier }) => {
   const { t } = useLanguage();
-  const s = TIER_STYLE[tier] || TIER_STYLE.LOW;
-  const Icon = s.Icon;
+  const upper = (tier || 'LOW').toUpperCase();
+
+  if (upper === 'CRITICAL') {
+    return (
+      <Badge variant="destructive" className="gap-1 font-bold">
+        <AlertOctagon className="w-3 h-3" aria-hidden="true" />
+        {t(`supplyIntel.tier.${tier.toLowerCase()}`, tier)}
+      </Badge>
+    );
+  }
+  if (upper === 'HIGH') {
+    return (
+      <Badge variant="warning" className="gap-1 font-bold">
+        <AlertTriangle className="w-3 h-3 text-amber-600" aria-hidden="true" />
+        {t(`supplyIntel.tier.${tier.toLowerCase()}`, tier)}
+      </Badge>
+    );
+  }
+  if (upper === 'MEDIUM') {
+    return (
+      <Badge variant="info" className="gap-1 font-bold">
+        <AlertCircle className="w-3 h-3 text-sky-600" aria-hidden="true" />
+        {t(`supplyIntel.tier.${tier.toLowerCase()}`, tier)}
+      </Badge>
+    );
+  }
   return (
-    <span
-      style={{
-        display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 10px', borderRadius: 999,
-        background: s.bg, color: s.fg, fontWeight: 700, fontSize: '0.78rem', whiteSpace: 'nowrap',
-      }}
-    >
-      <Icon size={13} aria-hidden="true" />
+    <Badge variant="success" className="gap-1 font-bold">
+      <CheckCircle className="w-3 h-3 text-emerald-600" aria-hidden="true" />
       {t(`supplyIntel.tier.${tier.toLowerCase()}`, tier)}
-    </span>
+    </Badge>
   );
 };
 
@@ -50,12 +63,12 @@ export const stateViewTypeFor = (e: ApiError | null): 'error' | '403' | 'offline
 
 /** Renders an object as a compact key/value list. */
 export const KeyValues: React.FC<{ data: Record<string, unknown> }> = ({ data }) => (
-  <dl style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '0.4rem 1rem', margin: 0, fontSize: '0.85rem' }}>
+  <dl className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs m-0">
     {Object.entries(data).map(([k, v]) => (
-      <div key={k} style={{ wordBreak: 'break-word' }}>
-        <dt style={{ ...mutedStyle, fontSize: '0.75rem' }}>{k.replace(/_/g, ' ')}</dt>
-        <dd style={{ margin: 0 }}>
-          {v !== null && typeof v === 'object' ? <code>{JSON.stringify(v)}</code> : String(v ?? '—')}
+      <div key={k} className="p-2 bg-muted/40 rounded border border-border">
+        <dt className="text-[11px] font-semibold text-muted-foreground uppercase">{k.replace(/_/g, ' ')}</dt>
+        <dd className="m-0 text-foreground font-medium mt-0.5 break-words">
+          {v !== null && typeof v === 'object' ? <code className="font-mono text-[10px]">{JSON.stringify(v)}</code> : String(v ?? '—')}
         </dd>
       </div>
     ))}

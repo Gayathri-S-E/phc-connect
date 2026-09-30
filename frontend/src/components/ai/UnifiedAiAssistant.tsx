@@ -2,14 +2,18 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Bot, X, Send, Loader2, Sparkles, AlertCircle, ChevronRight,
   History, Plus, Trash2, RotateCcw, Siren, Check, ArrowLeft,
+  Volume2, ShieldAlert, MessageSquare, PhoneCall
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { api } from '../../services/api';
 import type { ApiError } from '../../services/types';
 import { MicButton, SpeakButton } from './VoiceControls';
-
-/* ------------------------------ API contract ------------------------------ */
+import { Button } from '../ui/button';
+import { Badge } from '../ui/badge';
+import { Card } from '../ui/card';
+import { cn } from '../../lib/utils';
+import { formatRoleName } from '../../utils/formatters';
 
 type AssistantKey = 'PATIENT' | 'DOCTOR';
 
@@ -24,7 +28,7 @@ interface PendingActionView {
   id: string;
   tool: string;
   summary: string;
-  status: string; // PENDING | EXECUTING | EXECUTED | FAILED | CANCELLED | EXPIRED
+  status: string;
   expires_at: string;
   result?: Record<string, unknown> | null;
   already_completed?: boolean | null;
@@ -65,8 +69,6 @@ interface ConversationDetail {
   pending_actions: PendingActionView[];
 }
 
-/* ------------------------------ UI state types ----------------------------- */
-
 interface ActionState {
   id: string;
   summary: string;
@@ -93,15 +95,12 @@ const TERMINAL_STATUSES = ['EXECUTED', 'FAILED', 'CANCELLED', 'EXPIRED'];
 let uid = 0;
 const nextId = () => `m${Date.now()}_${uid++}`;
 
-/** The shared api service drops non-standard error fields (e.g. `retryable`), so infer it from the status. */
 const isRetryableError = (e: ApiError) => e.status === 0 || e.status === 429 || e.status >= 500;
-
-/* ------------------------- Safe minimal markdown --------------------------- */
 
 const renderInline = (text: string, keyPrefix: string): React.ReactNode[] =>
   text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
     part.startsWith('**') && part.endsWith('**') && part.length > 4
-      ? <strong key={`${keyPrefix}-${i}`}>{part.slice(2, -2)}</strong>
+      ? <strong key={`${keyPrefix}-${i}`} className="font-bold text-slate-900">{part.slice(2, -2)}</strong>
       : <React.Fragment key={`${keyPrefix}-${i}`}>{part}</React.Fragment>
   );
 
@@ -114,7 +113,7 @@ const Markdown: React.FC<{ text: string }> = ({ text }) => {
     if (para.length) {
       const k = `p${blocks.length}`;
       blocks.push(
-        <p key={k} style={{ margin: '0 0 0.4rem' }}>
+        <p key={k} className="mb-2 leading-relaxed text-slate-800 text-xs sm:text-sm">
           {para.flatMap((line, i) => [i > 0 ? <br key={`${k}-br${i}`} /> : null, ...renderInline(line, `${k}-${i}`)])}
         </p>
       );
@@ -126,7 +125,7 @@ const Markdown: React.FC<{ text: string }> = ({ text }) => {
       const k = `l${blocks.length}`;
       const Tag = list.ordered ? 'ol' : 'ul';
       blocks.push(
-        <Tag key={k} style={{ margin: '0 0 0.4rem', paddingLeft: '1.25rem' }}>
+        <Tag key={k} className="mb-2 pl-4 text-xs sm:text-sm leading-relaxed text-slate-800 list-disc space-y-1">
           {list.items.map((it, i) => <li key={i}>{renderInline(it, `${k}-${i}`)}</li>)}
         </Tag>
       );
@@ -154,20 +153,41 @@ const Markdown: React.FC<{ text: string }> = ({ text }) => {
   });
   flushPara();
   flushList();
-  return <div style={{ wordBreak: 'break-word' }}>{blocks}</div>;
+  return <div className="break-words space-y-1">{blocks}</div>;
 };
 
-/* -------------------------------- Component -------------------------------- */
+export interface UnifiedAiAssistantProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+  onOpen?: () => void;
+  docked?: boolean;
+}
 
-export const UnifiedAiAssistant: React.FC = () => {
-  const { activeRole } = useAuth();
+export const UnifiedAiAssistant: React.FC<UnifiedAiAssistantProps> = ({
+  isOpen: controlledIsOpen,
+  onClose,
+  onOpen,
+  docked = false,
+}) => {
+  const { activeRole, scope } = useAuth();
   const { language, t } = useLanguage();
-  const [isOpen, setIsOpen] = useState(false);
+  const [internalIsOpen, setInternalIsOpen] = useState(false);
+  const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen;
+
+  const setIsOpen = (val: boolean) => {
+    if (val) {
+      onOpen?.();
+      setInternalIsOpen(true);
+    } else {
+      onClose?.();
+      setInternalIsOpen(false);
+    }
+  };
+
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isModalActive, setIsModalActive] = useState(false);
 
-  // Common-AI state (PATIENT / DOCTOR)
   const assistantKey: AssistantKey | null = activeRole ? ROLE_TO_ASSISTANT[activeRole] ?? null : null;
   const [assistant, setAssistant] = useState<AssistantInfo | null>(null);
   const [assistantsState, setAssistantsState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
@@ -181,14 +201,13 @@ export const UnifiedAiAssistant: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const inFlight = useRef(false);
   const actionsInFlight = useRef<Set<string>>(new Set());
-  const epoch = useRef(0); // bumped when the conversation context changes so stale replies are ignored
+  const epoch = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const useCommonAi = assistantKey !== null;
   const langKey = (language as string) || 'en';
 
-  // Detect other open modals to avoid touch collisions
   useEffect(() => {
     const checkModal = () => {
       const modal = document.querySelector('div[role="dialog"]:not([data-assistant="true"])');
@@ -202,13 +221,13 @@ export const UnifiedAiAssistant: React.FC = () => {
 
   const getInitialMessage = (): string => {
     switch (activeRole) {
-      case 'PATIENT': return t('ai.initial.patient');
-      case 'DOCTOR': return t('ai.initial.doctor');
-      case 'NURSE': return t('ai.initial.nurse');
+      case 'PATIENT': return t('ai.initial.patient') || 'Hello! I am your Citizen Health Assistant. I can help answer questions about your health, find nearest facilities, and explain appointments.';
+      case 'DOCTOR': return t('ai.initial.doctor') || 'Clinical Assistant initialized. Ready to support drug interaction reviews, ICD-10 suggestions, and protocol checks.';
+      case 'NURSE': return t('ai.initial.nurse') || 'Triage Clinical Support online. Ready to assist with vitals categorization and cold chain monitoring.';
       case 'PHARMACIST':
       case 'DISTRICT_SUPPLY_OFFICER':
-      case 'STATE_SUPPLY_MANAGER': return t('ai.initial.supply');
-      default: return t('ai.initial.governance');
+      case 'STATE_SUPPLY_MANAGER': return t('ai.initial.supply') || 'Supply Chain Assistant active. Tracking buffer thresholds and stockout forecasts.';
+      default: return t('ai.initial.governance') || 'Public Health Governance Assistant ready for epidemiological and regional performance queries.';
     }
   };
 
@@ -222,7 +241,6 @@ export const UnifiedAiAssistant: React.FC = () => {
     setView('chat');
   }, []);
 
-  // Role change: drop state belonging to the previous role's assistant
   useEffect(() => {
     setAssistant(null);
     setAssistantsState('idle');
@@ -253,12 +271,10 @@ export const UnifiedAiAssistant: React.FC = () => {
   }, [messages, isLoading, view]);
 
   const describeError = (e: ApiError): string => {
-    if (e.status === 429) return t('ai.rateLimited', 'You are sending messages too quickly. Please wait a moment and try again.');
-    if (e.status === 0) return t('ai.error');
-    return e.detail || t('state.error');
+    if (e.status === 429) return t('ai.rateLimited') || 'You are sending messages too quickly. Please wait a moment and try again.';
+    if (e.status === 0) return t('ai.error') || 'Assistant service is temporarily unavailable.';
+    return e.detail || t('state.error') || 'An unexpected error occurred.';
   };
-
-  /* --------------------------------- Sending -------------------------------- */
 
   const send = async (rawText: string, opts: { skipUserBubble?: boolean } = {}) => {
     const text = rawText.trim();
@@ -302,23 +318,18 @@ export const UnifiedAiAssistant: React.FC = () => {
           });
         }
       } else {
-        // Legacy behaviour for all other roles
-        const res = await api.post<any>('/governance/ai-assistant', { question: text, language });
+        const res = await api.post<{ response: string; error?: string }>('/ai/chat', {
+          message: text,
+          language: langKey,
+        });
         if (epoch.current !== myEpoch) return;
-        if (res.data) {
-          const d = res.data;
-          let responseText = d.answer || d.response_text || d.response || d.advice || d.summary || JSON.stringify(d);
-          if (language === 'ta' && d.answer_ta) responseText = d.answer_ta;
-          addAssistant({ text: responseText, sources: d.sources, refused: d.refused });
+        if (res.error || !res.data) {
+          const err = res.error ?? ({ status: 0, title: '', detail: '' } as ApiError);
+          addAssistant({ text: describeError(err), error: { retryText: text, retryable: isRetryableError(err) } });
         } else {
-          addAssistant({
-            text: res.error ? describeError(res.error) : t('state.error'),
-            error: { retryText: text, retryable: true },
-          });
+          addAssistant({ text: res.data.response });
         }
       }
-    } catch {
-      addAssistant({ text: t('ai.error'), error: { retryText: text, retryable: true } });
     } finally {
       if (epoch.current === myEpoch) {
         inFlight.current = false;
@@ -327,581 +338,448 @@ export const UnifiedAiAssistant: React.FC = () => {
     }
   };
 
-  const retry = (msgId: string, text: string) => {
-    if (inFlight.current) return;
-    setMessages((prev) => prev.filter((m) => m.id !== msgId));
-    void send(text, { skipUserBubble: true });
+  const retry = (failedId: string, retryText: string) => {
+    setMessages((prev) => prev.filter((m) => m.id !== failedId));
+    void send(retryText, { skipUserBubble: true });
   };
 
-  /* ------------------------------ Pending actions ---------------------------- */
+  const executeAction = async (actionId: string, confirm: boolean) => {
+    if (actionsInFlight.current.has(actionId)) return;
+    actionsInFlight.current.add(actionId);
 
-  const patchAction = (id: string, patch: Partial<ActionState>) =>
-    setMessages((prev) => prev.map((m) => (m.action && m.action.id === id ? { ...m, action: { ...m.action, ...patch } } : m)));
+    setMessages((prev) =>
+      prev.map((m) => m.action?.id === actionId ? { ...m, action: { ...m.action, busy: true, error: undefined } } : m)
+    );
 
-  const runAction = async (id: string, kind: 'confirm' | 'cancel') => {
-    if (actionsInFlight.current.has(id)) return; // double-click safe
-    actionsInFlight.current.add(id);
-    patchAction(id, { busy: true, error: undefined });
-    try {
-      const res = await api.post<PendingActionView>(`/ai/actions/${id}/${kind}`);
-      if (res.error || !res.data) {
-        const err = res.error ?? ({ status: 0, title: '', detail: '' } as ApiError);
-        // Definitive client errors (expired, already handled, forbidden) close the card; transient ones allow retry.
-        const closed = err.status >= 400 && err.status < 500 && err.status !== 429;
-        patchAction(id, {
-          busy: false,
-          error: describeError(err),
-          status: closed ? 'FAILED' : 'PENDING',
-        });
-      } else {
-        const d = res.data;
-        const fallback =
-          d.status === 'EXECUTED' ? t('ai.action.done', 'Done.')
-            : d.status === 'CANCELLED' ? t('ai.action.cancelled', 'Cancelled. Nothing was changed.')
-              : d.status === 'EXPIRED' ? t('ai.action.expired', 'This request expired. Nothing was changed.')
-                : t('ai.action.failed', 'This could not be completed. Nothing was changed.');
-        patchAction(id, {
-          busy: false,
-          status: d.status,
-          resultMessage: d.message || fallback,
-          error: undefined,
-        });
-      }
-    } catch {
-      patchAction(id, { busy: false, error: t('ai.error'), status: 'PENDING' });
-    } finally {
-      actionsInFlight.current.delete(id);
-    }
-  };
+    const res = await api.post<{
+      status: string;
+      result?: Record<string, unknown> | null;
+      already_completed?: boolean;
+      message?: string;
+    }>(`/ai/actions/${actionId}/execute`, { confirm });
 
-  /* ------------------------------ Conversations ------------------------------ */
+    actionsInFlight.current.delete(actionId);
 
-  const loadHistory = async () => {
-    if (!assistant) return;
-    setHistoryLoading(true);
-    setHistoryError(null);
-    const res = await api.get<ConversationSummary[]>(`/ai/${assistant.key}/conversations`);
-    if (res.error || !res.data) setHistoryError(res.error ? describeError(res.error) : t('state.error'));
-    else setHistory(res.data);
-    setHistoryLoading(false);
-  };
-
-  const openHistory = () => {
-    setView('history');
-    void loadHistory();
-  };
-
-  const openConversation = async (id: string) => {
-    epoch.current += 1;
-    inFlight.current = false;
-    setIsLoading(false);
-    setHistoryLoading(true);
-    setHistoryError(null);
-    const res = await api.get<ConversationDetail>(`/ai/conversations/${id}`);
-    setHistoryLoading(false);
-    if (res.error || !res.data) {
-      setHistoryError(res.error ? describeError(res.error) : t('state.error'));
-      return;
-    }
-    const pendingById = new Map(res.data.pending_actions.map((a) => [a.id, a]));
-    setMessages(
-      res.data.messages.map((m): ChatMessage => {
-        const pid = m.meta?.pending_action_id;
-        const pa = pid ? pendingById.get(pid) : undefined;
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.action?.id !== actionId) return m;
+        if (res.error || !res.data) {
+          const err = res.error ?? ({ status: 0, title: '', detail: '' } as ApiError);
+          return { ...m, action: { ...m.action, busy: false, error: describeError(err) } };
+        }
+        const data = res.data;
         return {
-          id: m.id,
-          sender: m.role === 'user' ? 'user' : 'assistant',
-          text: m.content,
-          emergency: !!m.meta?.emergency,
-          sources: m.meta?.sources,
-          action: pa && pa.status === 'PENDING'
-            ? { id: pa.id, summary: pa.summary, status: pa.status, busy: false }
-            : undefined,
+          ...m,
+          action: {
+            ...m.action,
+            busy: false,
+            status: data.status,
+            resultMessage: data.message || (data.status === 'EXECUTED' ? t('ai.actionExecuted') : t('ai.actionCancelled')),
+          },
         };
       })
     );
-    setConversationId(res.data.conversation.id);
+  };
+
+  const openHistory = async () => {
+    if (!assistant) return;
+    setView('history');
+    setHistoryLoading(true);
+    setHistoryError(null);
+    const res = await api.get<ConversationSummary[]>(`/ai/${assistant.key}/conversations`);
+    setHistoryLoading(false);
+    if (res.error || !res.data) {
+      setHistoryError(describeError(res.error ?? ({ status: 0, title: '', detail: '' } as ApiError)));
+    } else {
+      setHistory(res.data);
+    }
+  };
+
+  const openConversation = async (id: string) => {
+    if (!assistant) return;
+    setIsLoading(true);
+    const res = await api.get<ConversationDetail>(`/ai/${assistant.key}/conversations/${id}`);
+    setIsLoading(false);
+    if (res.error || !res.data) {
+      setHistoryError(describeError(res.error ?? ({ status: 0, title: '', detail: '' } as ApiError)));
+      return;
+    }
+    const d = res.data;
+    setConversationId(d.conversation.id);
+    const actionsById = new Map<string, PendingActionView>((d.pending_actions || []).map((a) => [a.id, a]));
+    const rebuilt: ChatMessage[] = (d.messages || []).map((m) => {
+      const isUser = m.role.toLowerCase() === 'user';
+      const actionRef = m.meta?.pending_action_id ? actionsById.get(m.meta.pending_action_id) : undefined;
+      return {
+        id: m.id,
+        sender: isUser ? 'user' : 'assistant',
+        text: m.content,
+        emergency: m.meta?.emergency,
+        sources: m.meta?.sources,
+        action: actionRef
+          ? {
+              id: actionRef.id,
+              summary: actionRef.summary,
+              status: actionRef.status,
+              busy: false,
+              resultMessage: actionRef.message || undefined,
+            }
+          : undefined,
+      };
+    });
+    setMessages(rebuilt);
     setView('chat');
   };
 
   const deleteConversation = async (id: string) => {
-    if (deletingId || !assistant) return;
+    if (!assistant) return;
     setDeletingId(id);
-    setHistoryError(null);
-    // The shared api service cannot parse an empty 204 body, so confirm the outcome by re-listing.
-    await api.delete(`/ai/conversations/${id}`);
-    const list = await api.get<ConversationSummary[]>(`/ai/${assistant.key}/conversations`);
-    if (list.data) {
-      setHistory(list.data);
-      if (list.data.some((c) => c.id === id)) {
-        setHistoryError(t('ai.deleteFailed', 'Could not delete this conversation. Please try again.'));
-      } else if (conversationId === id) {
-        resetConversation();
-        setView('history');
-      }
-    } else {
-      setHistoryError(list.error ? describeError(list.error) : t('state.error'));
-    }
+    const res = await api.delete(`/ai/${assistant.key}/conversations/${id}`);
     setDeletingId(null);
+    if (!res.error) {
+      setHistory((prev) => prev.filter((c) => c.id !== id));
+      if (conversationId === id) resetConversation();
+    }
   };
 
-  /* --------------------------------- Rendering ------------------------------- */
+  const starters: string[] = assistant?.starters?.[langKey] || assistant?.starters?.en || [];
+  const notConfigured = assistant && !assistant.configured;
+  const assistantBlocked = useCommonAi && assistantsState === 'error';
+  const inputDisabled = isLoading || inFlight.current || assistantBlocked || !!notConfigured;
 
-  const getAssistantTitle = () => {
-    if (assistant?.title) return assistant.title;
-    if (activeRole === 'PATIENT') return t('ai.wellnessTitle');
-    if (activeRole === 'DOCTOR' || activeRole === 'NURSE') return t('ai.clinicalTitle');
-    return t('ai.governanceTitle');
+  const getAssistantTitle = (): string => {
+    if (activeRole === 'PATIENT') return 'Citizen Health Assistant';
+    if (activeRole === 'DOCTOR') return 'Clinical Decision Support';
+    if (activeRole === 'NURSE') return 'Triage Clinical Assistant';
+    if (activeRole === 'PHARMACIST') return 'Formulary & Dispensary Assistant';
+    return `${activeRole ? formatRoleName(activeRole, t) : 'Health'} Assistant`;
   };
-
-  const starters = assistant ? assistant.starters[langKey] ?? assistant.starters.en ?? [] : [];
-  const assistantBlocked = useCommonAi && assistantsState !== 'ready';
-  const notConfigured = useCommonAi && assistant && !assistant.configured;
-  const inputDisabled = isLoading || assistantBlocked || !!notConfigured;
-
-  const headerBtn: React.CSSProperties = {
-    background: 'none', border: 'none', color: '#ffffff', cursor: 'pointer',
-    padding: '0.35rem', display: 'flex', borderRadius: '6px',
-  };
-  const chipStyle: React.CSSProperties = {
-    background: 'none', border: '1px solid rgba(37, 99, 235, 0.3)', borderRadius: '6px',
-    padding: '0.3rem 0.55rem', textAlign: 'left', fontSize: '0.775rem', color: 'var(--primary)',
-    cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem',
-  };
-
-  const renderAction = (a: ActionState) => {
-    const done = TERMINAL_STATUSES.includes(a.status);
-    const failed = a.status === 'FAILED' || a.status === 'EXPIRED';
-    return (
-      <div
-        role="group"
-        aria-label={t('ai.action.title', 'Action awaiting your confirmation')}
-        style={{
-          marginTop: '0.5rem', padding: '0.65rem 0.75rem', borderRadius: '10px',
-          border: `1px solid ${failed ? '#fca5a5' : done ? '#86efac' : 'var(--primary)'}`,
-          backgroundColor: failed ? '#fef2f2' : done ? '#f0fdf4' : '#eff6ff',
-        }}
-      >
-        <div style={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', opacity: 0.7, marginBottom: '0.25rem' }}>
-          {t('ai.action.title', 'Action awaiting your confirmation')}
-        </div>
-        <div style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.5rem' }}>{a.summary}</div>
-        {done ? (
-          <div
-            role="status"
-            style={{ fontSize: '0.825rem', color: failed ? '#b91c1c' : '#15803d', display: 'flex', gap: '0.35rem', alignItems: 'flex-start' }}
-          >
-            {failed ? <AlertCircle size={15} style={{ flexShrink: 0, marginTop: 2 }} /> : <Check size={15} style={{ flexShrink: 0, marginTop: 2 }} />}
-            <span>{a.resultMessage || a.error}</span>
-          </div>
-        ) : (
-          <>
-            {a.error && (
-              <div role="alert" style={{ fontSize: '0.8rem', color: '#b91c1c', marginBottom: '0.45rem' }}>{a.error}</div>
-            )}
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                className="btn-primary"
-                disabled={a.busy}
-                aria-busy={a.busy}
-                onClick={() => void runAction(a.id, 'confirm')}
-                style={{ padding: '0.4rem 0.9rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
-              >
-                {a.busy && <Loader2 size={13} className="animate-spin" />}
-                {t('ai.action.confirm', 'Confirm')}
-              </button>
-              <button
-                type="button"
-                disabled={a.busy}
-                onClick={() => void runAction(a.id, 'cancel')}
-                style={{
-                  padding: '0.4rem 0.9rem', fontSize: '0.8rem', borderRadius: '8px', cursor: a.busy ? 'not-allowed' : 'pointer',
-                  border: '1px solid var(--border-color)', background: '#ffffff', color: 'var(--text-main)',
-                  opacity: a.busy ? 0.6 : 1,
-                }}
-              >
-                {t('ai.action.cancel', 'Cancel')}
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    );
-  };
-
-  const renderMessage = (msg: ChatMessage) => {
-    const isUser = msg.sender === 'user';
-    return (
-      <div
-        key={msg.id}
-        style={{
-          alignSelf: isUser ? 'flex-end' : 'flex-start', maxWidth: '88%',
-          display: 'flex', flexDirection: 'column', gap: '0.35rem',
-        }}
-      >
-        {msg.emergency && (
-          <div
-            role="alert"
-            style={{
-              padding: '0.6rem 0.8rem', borderRadius: '10px', backgroundColor: '#dc2626', color: '#ffffff',
-              fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem',
-              boxShadow: '0 2px 6px rgba(220, 38, 38, 0.35)',
-            }}
-          >
-            <Siren size={18} style={{ flexShrink: 0 }} />
-            {t('ai.emergency', 'This may be an emergency. Seek urgent medical help now or call 108.')}
-          </div>
-        )}
-        <div
-          style={{
-            padding: '0.7rem 0.95rem', borderRadius: '14px', fontSize: '0.875rem', lineHeight: 1.45,
-            backgroundColor: isUser ? 'var(--primary)' : msg.error ? '#fef2f2' : '#ffffff',
-            color: isUser ? '#ffffff' : msg.error ? '#991b1b' : 'var(--text-main)',
-            border: isUser ? 'none' : `${msg.emergency ? '2px' : '1px'} solid ${msg.emergency ? '#dc2626' : msg.error ? '#fca5a5' : 'var(--border-color)'}`,
-            boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-          }}
-        >
-          {isUser || msg.error ? msg.text : <Markdown text={msg.text} />}
-
-          {msg.refused && (
-            <div
-              style={{
-                marginTop: '0.5rem', padding: '0.4rem 0.6rem', borderRadius: '6px',
-                backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#dc2626', fontSize: '0.75rem',
-                display: 'flex', alignItems: 'center', gap: '0.35rem',
-              }}
-            >
-              <AlertCircle size={14} /> {t('ai.safetyWarning')}
-            </div>
-          )}
-
-          {msg.action && renderAction(msg.action)}
-
-          {msg.error?.retryable && (
-            <button
-              type="button"
-              onClick={() => retry(msg.id, msg.error!.retryText)}
-              disabled={isLoading}
-              aria-label={t('ai.retry', 'Retry')}
-              style={{
-                marginTop: '0.5rem', padding: '0.3rem 0.65rem', fontSize: '0.775rem', borderRadius: '6px',
-                border: '1px solid #dc2626', background: '#ffffff', color: '#b91c1c',
-                cursor: isLoading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem',
-              }}
-            >
-              <RotateCcw size={12} /> {t('ai.retry', 'Retry')}
-            </button>
-          )}
-        </div>
-
-        {msg.sources && msg.sources.length > 0 && (
-          <div
-            aria-label={t('ai.sources', 'Sources')}
-            style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', alignItems: 'center', paddingLeft: '0.25rem' }}
-          >
-            <span style={{ fontSize: '0.675rem', color: 'var(--text-muted)' }}>{t('ai.basedOn', 'Based on:')}</span>
-            {msg.sources.map((s, i) => (
-              <span
-                key={`${s}-${i}`}
-                style={{
-                  fontSize: '0.675rem', padding: '0.1rem 0.45rem', borderRadius: '999px',
-                  backgroundColor: 'rgba(37, 99, 235, 0.08)', color: 'var(--primary)',
-                  border: '1px solid rgba(37, 99, 235, 0.2)',
-                }}
-              >
-                {s}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const renderHistory = () => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-      {historyError && (
-        <div role="alert" style={{ fontSize: '0.8rem', color: '#b91c1c' }}>{historyError}</div>
-      )}
-      {historyLoading && (
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', color: 'var(--text-muted)', fontSize: '0.825rem' }}>
-          <Loader2 size={16} className="animate-spin" /> {t('state.loading', 'Loading...')}
-        </div>
-      )}
-      {!historyLoading && history.length === 0 && !historyError && (
-        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-          {t('ai.noConversations', 'No previous conversations yet.')}
-        </div>
-      )}
-      {history.map((c) => (
-        <div
-          key={c.id}
-          style={{
-            display: 'flex', alignItems: 'stretch', border: '1px solid var(--border-color)',
-            borderRadius: '10px', backgroundColor: '#ffffff', overflow: 'hidden',
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => void openConversation(c.id)}
-            disabled={historyLoading}
-            style={{
-              flex: 1, textAlign: 'left', padding: '0.6rem 0.75rem', background: 'none', border: 'none',
-              cursor: 'pointer', minWidth: 0, color: 'var(--text-main)',
-            }}
-          >
-            <div style={{ fontSize: '0.85rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {c.title || t('ai.untitled', 'Conversation')}
-            </div>
-            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-              {new Date(c.updated_at).toLocaleString()}
-            </div>
-          </button>
-          <button
-            type="button"
-            onClick={() => void deleteConversation(c.id)}
-            disabled={deletingId !== null}
-            aria-label={t('ai.deleteConversation', 'Delete conversation')}
-            title={t('ai.deleteConversation', 'Delete conversation')}
-            style={{
-              padding: '0 0.75rem', background: 'none', border: 'none', borderLeft: '1px solid var(--border-color)',
-              color: '#b91c1c', cursor: deletingId ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center',
-            }}
-          >
-            {deletingId === c.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
-          </button>
-        </div>
-      ))}
-    </div>
-  );
-
-  const renderChatBody = () => (
-    <>
-      {assistantsState === 'loading' && useCommonAi && (
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', color: 'var(--text-muted)', fontSize: '0.825rem' }}>
-          <Loader2 size={16} className="animate-spin" /> {t('state.loading', 'Loading...')}
-        </div>
-      )}
-      {useCommonAi && assistantsState === 'error' && (
-        <div role="alert" style={{ fontSize: '0.85rem', color: '#991b1b', display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-start' }}>
-          {t('ai.unavailable', 'The AI assistant is not available right now.')}
-          <button type="button" onClick={() => void loadAssistants()} style={chipStyle}>
-            <RotateCcw size={12} /> {t('ai.retry', 'Retry')}
-          </button>
-        </div>
-      )}
-      {notConfigured && (
-        <div role="status" style={{ fontSize: '0.825rem', color: '#92400e', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', padding: '0.5rem 0.7rem' }}>
-          {t('ai.notConfigured', 'The AI service is not configured on this server yet.')}
-        </div>
-      )}
-
-      {!assistantBlocked && messages.length === 0 && (
-        <>
-          <div
-            style={{
-              alignSelf: 'flex-start', maxWidth: '88%', padding: '0.7rem 0.95rem', borderRadius: '14px',
-              fontSize: '0.875rem', lineHeight: 1.45, backgroundColor: '#ffffff', color: 'var(--text-main)',
-              border: '1px solid var(--border-color)',
-            }}
-          >
-            {getInitialMessage()}
-          </div>
-          {starters.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }} aria-label={t('ai.starters', 'Suggested questions')}>
-              {starters.map((s, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  disabled={inputDisabled}
-                  onClick={() => void send(s)}
-                  style={{ ...chipStyle, opacity: inputDisabled ? 0.6 : 1 }}
-                >
-                  <ChevronRight size={12} style={{ flexShrink: 0 }} /> {s}
-                </button>
-              ))}
-            </div>
-          )}
-        </>
-      )}
-
-      {messages.map(renderMessage)}
-
-      {isLoading && (
-        <div
-          role="status"
-          aria-live="polite"
-          style={{
-            alignSelf: 'flex-start', padding: '0.65rem 1rem', borderRadius: '14px', backgroundColor: '#ffffff',
-            border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.5rem',
-            color: 'var(--text-muted)', fontSize: '0.825rem',
-          }}
-        >
-          <Loader2 size={16} className="animate-spin" style={{ color: 'var(--primary)' }} />
-          {t('ai.analyzing')}
-        </div>
-      )}
-    </>
-  );
 
   return (
     <>
-      {/* Floating Toggle Button */}
-      <div
-        style={{
-          position: 'fixed',
-          bottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))',
-          right: '1.5rem',
-          zIndex: isModalActive ? 100 : 850,
-          pointerEvents: isModalActive ? 'none' : 'auto',
-          opacity: isModalActive ? 0.3 : 1,
-          transition: 'opacity 0.2s ease, transform 0.2s ease',
-        }}
-      >
+      {/* Floating Assistant Trigger Pill (Only if uncontrolled and not docked) */}
+      {!isOpen && !isModalActive && !docked && controlledIsOpen === undefined && (
         <button
-          onClick={() => setIsOpen(!isOpen)}
-          aria-label={isOpen ? t('ai.closeAssistant') : t('ai.openAssistant')}
-          title={isOpen ? t('ai.closeAssistant') : t('ai.openAssistant')}
-          aria-expanded={isOpen}
-          style={{
-            width: '56px', height: '56px', borderRadius: '50%', backgroundColor: 'var(--primary)', color: '#ffffff',
-            border: 'none',
-            boxShadow: '0 10px 25px -5px rgba(37, 99, 235, 0.4), 0 8px 10px -6px rgba(37, 99, 235, 0.3)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: isModalActive ? 'default' : 'pointer', transition: 'transform 0.2s ease',
-          }}
-          onMouseEnter={(e) => { if (!isModalActive) e.currentTarget.style.transform = 'scale(1.06)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+          type="button"
+          onClick={() => setIsOpen(true)}
+          aria-label={t('ai.openAssistant') || 'Open Health Assistant'}
+          className="fixed bottom-5 right-5 z-40 flex items-center gap-2.5 px-4 py-3 bg-gradient-to-r from-sky-600 to-teal-600 text-white font-bold text-xs rounded-full shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer"
         >
-          {isOpen ? <X size={24} /> : <Sparkles size={24} />}
+          <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
+            <Bot className="w-4 h-4 text-white" />
+          </div>
+          <span>{getAssistantTitle()}</span>
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
         </button>
-      </div>
+      )}
 
+      {/* Backdrop for Slide-over Drawer (when controlled and not docked) */}
+      {isOpen && controlledIsOpen !== undefined && !docked && (
+        <div
+          className="fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-xs animate-fade-in"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+
+      {/* Assistant Container (Docked Rail, Slide-over Drawer, or Floating Card) */}
       {isOpen && (
         <div
-          role="dialog"
           data-assistant="true"
+          role={docked ? "region" : "dialog"}
           aria-label={getAssistantTitle()}
-          onKeyDown={(e) => { if (e.key === 'Escape') setIsOpen(false); }}
-          style={{
-            position: 'fixed',
-            bottom: 'calc(5.5rem + env(safe-area-inset-bottom, 0px))',
-            right: '1.5rem',
-            width: 'calc(100vw - 3rem)',
-            maxWidth: '420px',
-            height: 'min(620px, calc(100vh - 8rem))',
-            maxHeight: 'calc(100vh - 8rem)',
-            backgroundColor: '#ffffff',
-            borderRadius: '16px',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-            border: '1px solid var(--border-color)',
-            zIndex: 900,
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-          }}
+          className={
+            docked
+              ? "w-full h-full bg-white flex flex-col overflow-hidden"
+              : controlledIsOpen !== undefined
+              ? "fixed inset-y-0 right-0 z-50 w-full sm:w-[420px] bg-white border-l border-slate-200/90 shadow-2xl flex flex-col overflow-hidden animate-slide-left"
+              : "fixed bottom-4 right-4 z-50 w-full sm:w-[420px] h-[85vh] sm:h-[620px] max-h-[92vh] bg-white border border-slate-200/90 rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-scale-in"
+          }
         >
           {/* Header */}
-          <div
-            style={{
-              padding: '0.75rem 1rem', backgroundColor: 'var(--primary)', color: '#ffffff',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0 }}>
-              <div
-                style={{
-                  width: '32px', height: '32px', borderRadius: '8px', backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                }}
-              >
-                <Bot size={20} />
+          <div className="px-4 py-3.5 bg-gradient-to-r from-sky-600 to-teal-600 text-white flex items-center justify-between gap-3 shrink-0">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
+                <Bot className="w-5 h-5" />
               </div>
-              <div style={{ minWidth: 0 }}>
-                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <div className="min-w-0">
+                <h4 className="text-sm font-extrabold truncate leading-tight">
                   {getAssistantTitle()}
                 </h4>
-                <span style={{ fontSize: '0.725rem', opacity: 0.85 }}>
-                  {activeRole ? t(`role.${activeRole}`, activeRole.replace(/_/g, ' ')) : t('nav.workspace')}
-                </span>
+                <div className="flex items-center gap-1.5 text-[10px] text-sky-100 font-medium truncate">
+                  <span>{activeRole ? formatRoleName(activeRole, t) : 'Health Network'}</span>
+                  {scope && <span>• {scope} Scope</span>}
+                </div>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.1rem', flexShrink: 0 }}>
+
+            <div className="flex items-center gap-1 shrink-0">
               {useCommonAi && assistant && (
                 <>
-                  <button
-                    type="button"
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
                     onClick={view === 'history' ? () => setView('chat') : openHistory}
-                    aria-label={view === 'history' ? t('ai.backToChat', 'Back to chat') : t('ai.history', 'Conversation history')}
-                    title={view === 'history' ? t('ai.backToChat', 'Back to chat') : t('ai.history', 'Conversation history')}
-                    style={headerBtn}
+                    title={view === 'history' ? 'Back to chat' : 'Conversation history'}
+                    className="text-white hover:bg-white/20"
                   >
-                    {view === 'history' ? <ArrowLeft size={18} /> : <History size={18} />}
-                  </button>
-                  <button
-                    type="button"
+                    {view === 'history' ? <ArrowLeft className="w-4 h-4" /> : <History className="w-4 h-4" />}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
                     onClick={() => { resetConversation(); setTimeout(() => inputRef.current?.focus(), 0); }}
-                    aria-label={t('ai.newConversation', 'New conversation')}
-                    title={t('ai.newConversation', 'New conversation')}
-                    style={headerBtn}
+                    title="New conversation"
+                    className="text-white hover:bg-white/20"
                   >
-                    <Plus size={18} />
-                  </button>
+                    <Plus className="w-4 h-4" />
+                  </Button>
                 </>
               )}
-              {!useCommonAi && messages.length > 0 && (
-                <button
-                  type="button"
-                  onClick={resetConversation}
-                  aria-label={t('ai.newConversation', 'New conversation')}
-                  title={t('ai.newConversation', 'New conversation')}
-                  style={headerBtn}
-                >
-                  <Plus size={18} />
-                </button>
-              )}
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="icon-sm"
                 onClick={() => setIsOpen(false)}
-                aria-label={t('ai.closeAssistant')}
-                style={headerBtn}
+                title="Close assistant"
+                className="text-white hover:bg-white/20"
               >
-                <X size={20} />
-              </button>
+                <X className="w-4 h-4" />
+              </Button>
             </div>
           </div>
 
-          {/* Body */}
+          {/* Context banner */}
+          <div className="px-3.5 py-1.5 bg-sky-50 border-b border-sky-100 flex items-center justify-between text-[11px] text-sky-900 font-medium">
+            <span className="truncate">Context: {scope || 'Local Facility'} • {language.toUpperCase()}</span>
+            <span className="text-[10px] text-sky-600 font-bold uppercase tracking-wider">AI Verified</span>
+          </div>
+
+          {/* Chat Body */}
           <div
             ref={scrollRef}
-            style={{
-              flex: 1, overflowY: 'auto', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.85rem',
-              backgroundColor: 'rgba(248, 250, 252, 0.5)',
-            }}
+            className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-slate-50/50"
             aria-live="polite"
           >
-            {view === 'history' ? renderHistory() : renderChatBody()}
+            {view === 'history' ? (
+              <div className="space-y-2">
+                <div className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                  Conversation History
+                </div>
+                {historyLoading && (
+                  <div className="flex items-center gap-2 text-xs text-slate-500 py-4 justify-center">
+                    <Loader2 className="w-4 h-4 animate-spin text-sky-600" />
+                    Loading past sessions...
+                  </div>
+                )}
+                {!historyLoading && history.length === 0 && (
+                  <div className="text-xs text-slate-400 py-6 text-center">
+                    No previous conversations found.
+                  </div>
+                )}
+                {history.map((c) => (
+                  <div
+                    key={c.id}
+                    className="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 bg-white hover:border-slate-300 shadow-2xs transition"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => void openConversation(c.id)}
+                      className="flex-1 text-left min-w-0 pr-2 cursor-pointer"
+                    >
+                      <div className="text-xs font-bold text-slate-900 truncate">
+                        {c.title || 'Health Conversation'}
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">
+                        {new Date(c.updated_at).toLocaleDateString()}
+                      </div>
+                    </button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => void deleteConversation(c.id)}
+                      disabled={deletingId === c.id}
+                      className="text-slate-400 hover:text-red-600"
+                    >
+                      {deletingId === c.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <>
+                {/* Initial Assistant greeting */}
+                {messages.length === 0 && (
+                  <div className="space-y-3">
+                    <div className="p-3.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-700 leading-relaxed shadow-2xs">
+                      <div className="flex items-center gap-2 mb-1.5 font-bold text-sky-900">
+                        <Sparkles className="w-4 h-4 text-sky-600" />
+                        <span>Welcome to Med2Us Copilot</span>
+                      </div>
+                      <p>{getInitialMessage()}</p>
+                    </div>
+
+                    {starters.length > 0 && (
+                      <div className="space-y-1.5">
+                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                          Suggested questions
+                        </span>
+                        <div className="flex flex-col gap-1.5">
+                          {starters.slice(0, 4).map((s, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => void send(s)}
+                              disabled={inputDisabled}
+                              className="text-left px-3 py-2 rounded-lg border border-sky-100 bg-sky-50/70 hover:bg-sky-100 hover:border-sky-200 text-xs font-semibold text-sky-900 transition cursor-pointer flex items-center justify-between"
+                            >
+                              <span className="truncate">{s}</span>
+                              <ChevronRight className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Message bubbles */}
+                {messages.map((msg) => {
+                  const isUser = msg.sender === 'user';
+                  return (
+                    <div
+                      key={msg.id}
+                      className={cn('flex flex-col gap-1', isUser ? 'items-end' : 'items-start')}
+                    >
+                      {/* Emergency Alert Header */}
+                      {msg.emergency && (
+                        <div className="w-full p-2.5 rounded-xl bg-red-600 text-white text-xs font-bold flex items-center justify-between gap-2 shadow-xs animate-fade-in">
+                          <div className="flex items-center gap-2">
+                            <Siren className="w-4 h-4 animate-bounce shrink-0" />
+                            <span>URGENT: Immediate Medical Attention Needed</span>
+                          </div>
+                          <a
+                            href="tel:108"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-white text-red-700 font-extrabold text-[11px] hover:bg-red-50 shrink-0"
+                          >
+                            <PhoneCall className="w-3 h-3" />
+                            Call 108
+                          </a>
+                        </div>
+                      )}
+
+                      {/* Bubble */}
+                      <div
+                        className={cn(
+                          'p-3 rounded-2xl text-xs sm:text-sm max-w-[88%] shadow-2xs leading-relaxed',
+                          isUser
+                            ? 'bg-sky-600 text-white rounded-br-xs'
+                            : msg.error
+                            ? 'bg-red-50 text-red-900 border border-red-200 rounded-bl-xs'
+                            : msg.emergency
+                            ? 'bg-white text-slate-900 border-2 border-red-500 rounded-bl-xs'
+                            : 'bg-white text-slate-900 border border-slate-200/90 rounded-bl-xs'
+                        )}
+                      >
+                        {isUser || msg.error ? msg.text : <Markdown text={msg.text} />}
+
+                        {/* Safety Notice */}
+                        {msg.refused && (
+                          <div className="mt-2 p-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-[11px] flex items-center gap-1.5 font-semibold">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                            Clinical Safety Warning: Medical consultation required.
+                          </div>
+                        )}
+
+                        {/* Pending Action Confirmation */}
+                        {msg.action && (
+                          <div className="mt-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                            <div className="text-[11px] font-bold text-slate-700">
+                              Proposed Action: {msg.action.summary}
+                            </div>
+                            {msg.action.status === 'PENDING' ? (
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="emerald"
+                                  size="sm"
+                                  disabled={msg.action.busy}
+                                  onClick={() => executeAction(msg.action!.id, true)}
+                                  className="h-7 text-xs px-2.5"
+                                >
+                                  <Check className="w-3 h-3 mr-1" />
+                                  Confirm &amp; Proceed
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={msg.action.busy}
+                                  onClick={() => executeAction(msg.action!.id, false)}
+                                  className="h-7 text-xs px-2.5 text-red-600 hover:bg-red-50"
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="text-[11px] font-semibold text-emerald-700 flex items-center gap-1">
+                                <Check className="w-3 h-3" />
+                                {msg.action.resultMessage || `Action status: ${msg.action.status}`}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Retry */}
+                        {msg.error?.retryable && (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => retry(msg.id, msg.error!.retryText)}
+                            disabled={isLoading}
+                            className="h-7 text-[11px] mt-2 px-2.5"
+                          >
+                            <RotateCcw className="w-3 h-3 mr-1" />
+                            Retry
+                          </Button>
+                        )}
+                      </div>
+
+                      {/* Evidence Citations / Sources */}
+                      {msg.sources && msg.sources.length > 0 && (
+                        <div className="flex flex-wrap gap-1 px-1 mt-0.5">
+                          <span className="text-[10px] text-slate-400">Sources:</span>
+                          {msg.sources.map((s, idx) => (
+                            <span
+                              key={idx}
+                              className="text-[10px] px-1.5 py-0.5 rounded bg-sky-50 border border-sky-100 text-sky-700 font-medium"
+                            >
+                              {s}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Loading indicator */}
+                {isLoading && (
+                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-500 w-fit">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-sky-600" />
+                    <span>Analyzing health context...</span>
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
-          {/* Disclaimer */}
-          <div
-            style={{
-              padding: '0.4rem 0.75rem', backgroundColor: 'rgba(241, 245, 249, 0.8)',
-              borderTop: '1px solid var(--border-color)', fontSize: '0.675rem', color: 'var(--text-muted)', textAlign: 'center',
-            }}
-          >
-            {t('ai.disclaimer')}
+          {/* Clinical Disclaimer */}
+          <div className="px-3 py-1 bg-slate-100/90 border-t border-slate-200 text-[10px] text-slate-500 text-center">
+            {t('ai.disclaimer') || 'Informational guidance only. For medical emergencies, consult a healthcare officer or dial 108.'}
           </div>
 
-          {/* Input */}
+          {/* Input Footer */}
           {view === 'chat' && (
             <form
               onSubmit={(e) => { e.preventDefault(); void send(input); }}
-              style={{
-                padding: '0.75rem 1rem', borderTop: '1px solid var(--border-color)', display: 'flex', gap: '0.5rem',
-                backgroundColor: '#ffffff',
-              }}
+              className="p-3 border-t border-slate-200 bg-white flex items-center gap-2 shrink-0"
             >
               <MicButton
                 language={langKey}
@@ -914,24 +792,21 @@ export const UnifiedAiAssistant: React.FC = () => {
                 value={input}
                 maxLength={4000}
                 onChange={(e) => setInput(e.target.value)}
-                disabled={assistantBlocked || !!notConfigured}
-                aria-label={t('ai.askPlaceholder')}
-                placeholder={t('ai.askPlaceholder')}
-                style={{
-                  flex: 1, minWidth: 0, padding: '0.6rem 0.85rem', borderRadius: '8px',
-                  border: '1px solid var(--border-color)', fontSize: '0.85rem',
-                }}
+                disabled={inputDisabled}
+                aria-label={t('ai.askPlaceholder') || 'Ask health question or clinical query...'}
+                placeholder={t('ai.askPlaceholder') || 'Ask health question or clinical query...'}
+                className="flex-1 min-w-0 h-9 px-3 text-xs bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-sky-500 focus:bg-white text-slate-900 transition"
               />
-              <button
+              <Button
                 type="submit"
+                variant="primary"
+                size="icon"
                 disabled={inputDisabled || !input.trim()}
-                className="btn-primary"
-                aria-label={t('ai.send')}
-                title={t('ai.send')}
-                style={{ padding: '0.6rem 0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                title="Send message"
+                className="h-9 w-9 shrink-0"
               >
-                <Send size={16} />
-              </button>
+                <Send className="w-4 h-4" />
+              </Button>
               <SpeakButton
                 language={langKey}
                 textToSpeak={[...messages].reverse().find((m) => m.sender === 'assistant' && !m.error)?.text ?? ''}

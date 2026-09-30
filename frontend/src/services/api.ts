@@ -81,7 +81,9 @@ export const fetchWithAuth = async <T = any>(
   };
 
   try {
-    let response = await fetch(url, { ...options, headers });
+    // Never leave the UI spinning forever if the backend or an upstream provider stalls.
+    const timeoutMs = endpoint.startsWith('/ai/') ? 60_000 : 30_000;
+    let response = await fetch(url, { signal: AbortSignal.timeout(timeoutMs), ...options, headers });
 
     // Handle 401 Unauthorized with token refresh rotation
     if (response.status === 401 && !endpoint.includes('/auth/login') && !endpoint.includes('/auth/refresh')) {

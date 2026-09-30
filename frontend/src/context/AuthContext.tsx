@@ -183,7 +183,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (res.success) {
       return { success: true, path: account.defaultPath };
     }
-    return { success: false, path: '/login', error: res.error || 'Authentication failed. Please ensure the backend is running.' };
+    return { success: false, path: '/login', error: res.error || 'Sign-in failed. Please check your details and try again.' };
   };
 
   const hasPermission = (permissionCode: string): boolean => {

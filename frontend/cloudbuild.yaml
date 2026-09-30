@@ -1,0 +1,10 @@
+# Builds the Med2Us web app with the backend URL baked in, then pushes it to Artifact Registry.
+# Usage: gcloud builds submit frontend --config frontend/cloudbuild.yaml --substitutions=_API_URL=https://<api>/api/v1
+substitutions:
+  _API_URL: ""
+  _IMAGE: "asia-south1-docker.pkg.dev/task-7eb8e/cloud-run-source-deploy/med2us-web"
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    args: ["build", "--build-arg", "VITE_API_URL=${_API_URL}", "-t", "${_IMAGE}", "."]
+images:
+  - "${_IMAGE}"

@@ -58,19 +58,19 @@ const ROLE_CATEGORIES: Record<string, 'clinical' | 'supply' | 'admin'> = {
 const PILLARS = [
   {
     icon: <HeartPulse className="w-6 h-6" />,
-    iconBg: '#0284c7',
+    iconBg: '#5aa9e6',
     title: 'Healthcare Intelligence',
     description: 'Streamlined patient registration, OPD triage, electronic prescriptions, and lab workflows built for high-volume primary care centers.',
   },
   {
     icon: <Boxes className="w-6 h-6" />,
-    iconBg: '#0d9488',
+    iconBg: '#7fc8f8',
     title: 'Inventory Coordination',
     description: 'Automated stock thresholds, batch expiry alerts, dispensary management, and inter-facility transfers to prevent medicine stock-outs.',
   },
   {
     icon: <ShieldCheck className="w-6 h-6" />,
-    iconBg: '#1d4ed8',
+    iconBg: '#ff6392',
     title: 'Supply Chain Resilience',
     description: 'Multi-tier administrative oversight from District Officers to National Health Authorities, ensuring emergency dispatch during public health crises.',
     colSpan: true,
@@ -115,7 +115,7 @@ export const LandingPage: React.FC<Props> = ({
         {loginError && (
           <div className="bg-red-600/90 text-white px-4 py-3 flex items-center justify-between text-sm shadow-md sticky top-[72px] z-40 backdrop-blur-sm">
             <div className="flex items-center gap-2 max-w-5xl mx-auto w-full">
-              <span className="font-bold">⚠️ Connection Notice:</span>
+              <span className="font-bold">⚠️ Sign-in problem:</span>
               <span className="truncate">{loginError}</span>
               {onClearError && (
                 <button
@@ -161,28 +161,27 @@ export const LandingPage: React.FC<Props> = ({
           </Container>
         </section>
 
-        {/* ── 4. 13 Canonical Role Portals (Dark) ── */}
+        {/* ── 4. 13 Canonical Role Portals ── */}
         <section
           id="roles"
-          className={`scroll-mt-[72px] ${SECTION_PY} border-b border-slate-800`}
-          style={{ backgroundColor: '#0f172a' }}
+          className={`scroll-mt-[72px] ${SECTION_PY} border-b border-slate-200/90 bg-slate-50/70`}
         >
           <Container>
             {/* Header row: on lg → space-between; on mobile → stacked */}
-            <div className="flex flex-col lg:flex-row lg:items-end gap-6 mb-8 pb-6 border-b min-w-0" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+            <div className="flex flex-col lg:flex-row lg:items-end gap-6 mb-8 pb-6 border-b border-slate-200 min-w-0">
               <div className="min-w-0">
-                <div className="flex items-center gap-2 text-sky-400 text-xs font-bold uppercase tracking-wider mb-1">
+                <div className="flex items-center gap-2 text-sky-700 text-xs font-bold uppercase tracking-wider mb-1">
                   <Layers className="w-4 h-4 shrink-0" />
                   Role-Based Architecture (RBAC)
                 </div>
                 <h2
-                  className="font-extrabold text-white tracking-tight text-balance"
+                  className="font-extrabold text-slate-900 tracking-tight text-balance"
                   style={{ fontSize: 'clamp(1.5rem, 3vw + 0.5rem, 2.5rem)' }}
                 >
                   13 Canonical Role Portals
                 </h2>
-                <p className="mt-1 text-sm text-slate-400 max-w-xl text-pretty">
-                  Click any verified demo persona to authenticate directly into their authorized portal view.
+                <p className="mt-1 text-sm text-slate-600 max-w-xl text-pretty">
+                  Choose an authorized role to authenticate into its dedicated workspace.
                 </p>
               </div>
 

@@ -32,8 +32,7 @@ export const RoleFilter: React.FC<Props> = ({ selected, counts, onChange }) => {
     <div
       role="tablist"
       aria-label="Filter role portals"
-      className="flex items-center gap-1.5 overflow-x-auto no-scrollbar snap-x p-1.5 rounded-xl shrink-0 max-w-full"
-      style={{ backgroundColor: 'rgba(30,41,59,0.8)', border: '1px solid rgba(255,255,255,0.08)' }}
+      className="flex items-center gap-1.5 overflow-x-auto no-scrollbar snap-x p-1.5 rounded-xl shrink-0 max-w-full bg-slate-100 border border-slate-200 shadow-2xs"
     >
       {TABS.map(({ key, label }, idx) => {
         const active = selected === key;
@@ -46,17 +45,19 @@ export const RoleFilter: React.FC<Props> = ({ selected, counts, onChange }) => {
             tabIndex={active ? 0 : -1}
             onClick={() => onChange(key)}
             onKeyDown={(e) => handleKey(e, idx)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold snap-start shrink-0 whitespace-nowrap transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
-            style={
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold snap-start shrink-0 whitespace-nowrap transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 ${
               active
-                ? { backgroundColor: '#0284c7', color: '#ffffff' }
-                : { backgroundColor: 'transparent', color: '#94a3b8' }
-            }
+                ? 'bg-white text-sky-900 shadow-2xs border border-slate-200/80'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+            }`}
           >
             {label}
             <span
-              className="px-1.5 py-0.5 rounded-md text-[10px] font-mono tabular-nums"
-              style={active ? { backgroundColor: '#0369a1', color: '#fff' } : { backgroundColor: 'rgba(255,255,255,0.08)', color: '#94a3b8' }}
+              className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono tabular-nums font-semibold ${
+                active
+                  ? 'bg-sky-100 text-sky-800'
+                  : 'bg-slate-200 text-slate-600'
+              }`}
             >
               {counts[key]}
             </span>

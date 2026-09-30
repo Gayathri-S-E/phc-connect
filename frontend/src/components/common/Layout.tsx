@@ -5,61 +5,32 @@ import { UnifiedAiAssistant } from '../ai/UnifiedAiAssistant';
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        minHeight: '100vh',
-        backgroundColor: 'var(--bg-main)',
-        color: 'var(--text-main)',
-      }}
-    >
-      {/* Top Header */}
-      <Header onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
+    <div className="flex flex-col min-h-screen bg-slate-50 text-slate-900 font-sans antialiased">
+      {/* Top Application Header */}
+      <Header
+        onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+        onToggleAi={() => setAiOpen(!aiOpen)}
+        aiOpen={aiOpen}
+      />
 
-      {/* Main Content Area */}
-      <div style={{ display: 'flex', flex: 1, position: 'relative' }}>
-        {/* Desktop Sidebar */}
-        <aside
-          className="desktop-sidebar"
-          style={{
-            width: '260px',
-            backgroundColor: '#ffffff',
-            borderRight: '1px solid var(--border-color)',
-            display: 'flex',
-            flexDirection: 'column',
-            position: 'sticky',
-            top: '64px',
-            height: 'calc(100vh - 64px)',
-            overflowY: 'auto',
-          }}
-        >
+      {/* Main Flex Area */}
+      <div className="flex flex-1 relative">
+        {/* Desktop Sticky Navigation Sidebar */}
+        <aside className="hidden lg:flex w-64 bg-white border-r border-slate-200/90 flex-col sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto z-30 shrink-0">
           <Navigation />
         </aside>
 
         {/* Mobile Slide-in Drawer */}
         {sidebarOpen && (
           <div
-            style={{
-              position: 'fixed',
-              inset: 0,
-              zIndex: 800,
-              backgroundColor: 'rgba(15, 23, 42, 0.5)',
-              backdropFilter: 'blur(3px)',
-            }}
+            className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs lg:hidden animate-fade-in"
             onClick={() => setSidebarOpen(false)}
           >
             <div
-              style={{
-                width: '280px',
-                height: '100%',
-                backgroundColor: '#ffffff',
-                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
-                display: 'flex',
-                flexDirection: 'column',
-              }}
+              className="w-72 max-w-[85vw] h-full bg-white shadow-2xl flex flex-col overflow-y-auto animate-scale-in"
               onClick={(e) => e.stopPropagation()}
             >
               <Navigation onItemClick={() => setSidebarOpen(false)} />
@@ -67,24 +38,23 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
           </div>
         )}
 
-        {/* Primary Page Content with Dedicated Bottom Safe Area for Floating Controls */}
-        <main
-          style={{
-            flex: 1,
-            padding: '1.5rem',
-            paddingBottom: '6rem',
-            maxWidth: '1440px',
-            margin: '0 auto',
-            width: '100%',
-            overflowX: 'hidden',
-          }}
-        >
+        {/* Primary Page Content Area (Full-Width Responsive Desktop Layout) */}
+        <main className="flex-1 w-full px-4 sm:px-6 lg:px-8 py-6 min-w-0 overflow-x-hidden">
           {children}
         </main>
+
+        {/* Desktop Docked AI Copilot Rail (Non-obstructive Intelligence Workspace) */}
+        {aiOpen && (
+          <aside className="hidden xl:flex w-[400px] shrink-0 border-l border-slate-200/90 bg-white sticky top-16 h-[calc(100vh-4rem)] flex-col z-30 shadow-xs">
+            <UnifiedAiAssistant docked isOpen={true} onClose={() => setAiOpen(false)} />
+          </aside>
+        )}
       </div>
 
-      {/* Unified Context-Aware AI Assistant */}
-      <UnifiedAiAssistant />
+      {/* Mobile & Tablet Slide-over AI Copilot Drawer */}
+      <div className="xl:hidden">
+        <UnifiedAiAssistant isOpen={aiOpen} onClose={() => setAiOpen(false)} onOpen={() => setAiOpen(true)} />
+      </div>
     </div>
   );
 };
