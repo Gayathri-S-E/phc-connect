@@ -283,3 +283,19 @@ async def test_awaiting_doctor_review_uses_real_data_only(async_client, world, d
     res = llm.last_tool_response()["result"]
     assert res["count"] == 1 and res["vitals_recorded_doctor_consultation_still_open"][0]["uhid"] == "UHID-1"
     assert res["vitals_recorded_doctor_consultation_still_open"][0]["doctor_consultation_status"] == "IN_PROGRESS"
+
+
+@pytest.mark.asyncio
+async def test_triage_vitals_endpoint_enforces_facility_scope(async_client, world):
+    """Regression: the REST endpoint used to accept any appointment id, including another facility's."""
+    body = {"systolic_bp": 120, "diastolic_bp": 80, "pulse_rate": 72, "temperature_celsius": 36.8,
+            "respiratory_rate": 16, "spo2_percent": 98}
+    other = await async_client.post(f"/api/v1/nurse/triage/vitals?appointment_id={world['appt_c'].id}",
+                                    json=body, headers=world["H"]["nurse"])
+    assert other.status_code == 403, other.text
+    missing = await async_client.post(f"/api/v1/nurse/triage/vitals?appointment_id={uuid.uuid4()}",
+                                      json=body, headers=world["H"]["nurse"])
+    assert missing.status_code == 404
+    own = await async_client.post(f"/api/v1/nurse/triage/vitals?appointment_id={world['appt_a'].id}",
+                                  json=body, headers=world["H"]["nurse"])
+    assert own.status_code == 201, own.text

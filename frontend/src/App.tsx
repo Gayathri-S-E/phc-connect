@@ -20,6 +20,15 @@ import PublicHealthAnalystPortal from './portals/PublicHealthAnalystPortal';
 import NationalHealthPortal from './portals/NationalHealthPortal';
 import PlatformAdminPortal from './portals/PlatformAdminPortal';
 
+// Capacity, supply intelligence and Google-powered screens
+import CapacityDashboard from './pages/capacity/CapacityDashboard';
+import FacilityBedsPanel from './pages/capacity/FacilityBedsPanel';
+import StockoutWarnings from './pages/supply-intelligence/StockoutWarnings';
+import RedistributionPlanner from './pages/supply-intelligence/RedistributionPlanner';
+import FederatedModelPanel from './pages/supply-intelligence/FederatedModelPanel';
+import NearestFacilities from './pages/google/NearestFacilities';
+import GoogleServicesPanel from './pages/google/GoogleServicesPanel';
+
 import { 
   Building2, Users, Stethoscope, Activity, 
   Pill, Truck, ShieldAlert, Globe2, Server, 
@@ -276,6 +285,15 @@ const AuthenticatedApp: React.FC = () => {
         {/* Role 13: Super / Platform Administrator Portal */}
         <Route path="/platform" element={<PlatformAdminPortal />} />
         <Route path="/platform/*" element={<PlatformAdminPortal />} />
+
+        {/* Cross-role screens: beds, supply intelligence, Google tools (access is enforced by the backend) */}
+        <Route path="/capacity" element={<CapacityDashboard />} />
+        <Route path="/capacity/beds" element={<FacilityBedsPanel />} />
+        <Route path="/intelligence/warnings" element={<StockoutWarnings />} />
+        <Route path="/intelligence/redistribution" element={<RedistributionPlanner />} />
+        <Route path="/intelligence/federation" element={<FederatedModelPanel />} />
+        <Route path="/facilities/nearest" element={<NearestFacilities />} />
+        <Route path="/admin/google" element={<GoogleServicesPanel />} />
 
         {/* Default route redirects to active role's home view */}
         <Route path="/" element={<Navigate to={getDefaultPathForRole()} replace />} />

@@ -12,6 +12,7 @@ from app.api.deps import (
     get_request_context,
     require_permission,
 )
+from app.core.authorization import check_scope_access
 from app.core.exceptions import BadRequestException, ResourceNotFoundException
 from app.core.permissions import SystemPermissions
 from app.models.healthcare import AppointmentStatus
@@ -158,6 +159,16 @@ async def record_triage_vitals(
     and moves patient status to CHECKED_IN.
     """
     service = HealthcareService(session)
+    appt = await service.repo.get_appointment_by_id(appointment_id)
+    if appt is None:
+        raise ResourceNotFoundException("Appointment", str(appointment_id))
+    # A nurse may only triage appointments inside their own facility scope.
+    await check_scope_access(
+        current_user=current_user,
+        target_facility_id=appt.facility_id,
+        permission_code=SystemPermissions.PATIENTS_VITALS_RECORD,
+        session=session,
+    )
     saved_vitals, _ = await service.record_nurse_triage_vitals(
         appointment_id=appointment_id,
         vitals_data=payload,

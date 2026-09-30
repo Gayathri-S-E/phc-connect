@@ -109,6 +109,15 @@ NAV_CATALOGUE: List[Dict] = [
     {"section": "national", "key": "national.supply_grid", "path": "/national/supply-grid", "icon": "truck", "permission": P.GOVERNANCE_NATIONAL_VIEW},
     {"section": "national", "key": "governance.actions", "path": "/governance/actions", "icon": "list", "permission": P.GOVERNANCE_ACTION_CREATE},
 
+    # Cross-role: capacity (beds/attendance), supply intelligence and Google-powered tools
+    {"section": "patient", "key": "patient.nearest", "path": "/facilities/nearest", "icon": "map", "permission": P.PATIENTS_AWARENESS_READ},
+    {"section": "capacity", "key": "capacity.dashboard", "path": "/capacity", "icon": "activity", "permission": P.BEDS_READ},
+    {"section": "capacity", "key": "capacity.beds", "path": "/capacity/beds", "icon": "building", "permission": P.BEDS_OCCUPANCY_UPDATE},
+    {"section": "intelligence", "key": "intelligence.warnings", "path": "/intelligence/warnings", "icon": "alert", "permission": P.AI_RISK_ANALYZE},
+    {"section": "intelligence", "key": "intelligence.redistribution", "path": "/intelligence/redistribution", "icon": "truck", "permission": P.AI_RISK_ANALYZE},
+    {"section": "intelligence", "key": "intelligence.federation", "path": "/intelligence/federation", "icon": "globe", "permission": P.AI_FORECAST_VIEW},
+    {"section": "intelligence", "key": "intelligence.google", "path": "/admin/google", "icon": "server", "permission": P.GOVERNANCE_REPORT_GENERATE},
+
     # Role 13: Super / Platform Administrator
     {"section": "platform", "key": "platform.dashboard", "path": "/platform", "icon": "server", "permission": P.PLATFORM_DASHBOARD_VIEW},
     {"section": "platform", "key": "platform.security", "path": "/platform/security", "icon": "shield", "permission": P.PLATFORM_SECURITY_READ},
