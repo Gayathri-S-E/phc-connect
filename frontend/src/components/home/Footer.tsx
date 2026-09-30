@@ -1,24 +1,43 @@
 import React from 'react';
-import { Building2 } from 'lucide-react';
 import { Container } from '../common/Container';
+import { MedLogo } from '../brand/MedLogo';
+import { useLanguage } from '../../context/LanguageContext';
 
-export const Footer: React.FC = () => (
-  <footer
-    id="about"
-    className="scroll-mt-[72px] border-t border-slate-200/90 py-8 text-sm bg-white"
-  >
-    <Container className="flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left">
-      <div className="flex flex-col sm:flex-row items-center gap-2 min-w-0">
-        <div className="flex items-center gap-2">
-          <Building2 className="w-4 h-4 text-sky-600 shrink-0" />
-          <span className="font-bold text-slate-900">Med2Us — Connected Healthcare &amp; Supply Chain Resilience</span>
+const LINKS = [
+  { href: '#capabilities', labelKey: 'landing.nav.capabilities' },
+  { href: '#roles', labelKey: 'landing.nav.roles' },
+  { href: '#workflow', labelKey: 'landing.nav.workflow' },
+];
+
+export const Footer: React.FC = () => {
+  const { t } = useLanguage();
+
+  return (
+    <footer id="about" className="border-t border-border bg-card">
+      <Container className="grid gap-6 py-8 md:grid-cols-12 md:items-start">
+        <div className="md:col-span-6">
+          <MedLogo variant="full" size={28} />
+          <p className="mt-3 text-small text-muted-foreground">{t('landing.footer.tagline')}</p>
+          <p className="mt-1 text-small font-medium text-foreground">{t('landing.footer.org')}</p>
         </div>
-        <span className="hidden sm:inline text-slate-300">•</span>
-        <span className="text-slate-600 font-medium">Government of Tamil Nadu</span>
-      </div>
-      <p className="text-xs text-slate-500 shrink-0 font-medium">
-        Protected by Strict Scope Authorization &amp; RFC Auditing.
-      </p>
-    </Container>
-  </footer>
-);
+
+        <nav aria-label={t('nav.navigation')} className="md:col-span-3">
+          <ul className="space-y-2 text-small">
+            {LINKS.map(({ href, labelKey }) => (
+              <li key={href}>
+                <a
+                  href={href}
+                  className="rounded-sm text-primary-text underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {t(labelKey)}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+
+        <p className="text-small text-muted-foreground md:col-span-3">{t('landing.footer.security')}</p>
+      </Container>
+    </footer>
+  );
+};

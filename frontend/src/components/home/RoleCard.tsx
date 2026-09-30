@@ -1,26 +1,7 @@
 import React from 'react';
 import { ArrowRight, Loader2 } from 'lucide-react';
 import { formatRoleName } from '../../utils/formatters';
-import { Badge } from '../ui/badge';
-
-/* Category → accent styling (Med2Us Signature Palette) */
-const ACCENT_STYLES = {
-  clinical: {
-    border: 'border-l-[#5aa9e6] hover:border-l-[#3b8ec8]',
-    iconBg: 'bg-[#f0f7fe] text-[#257bb5] border border-[#7fc8f8]/60',
-    label: 'text-[#257bb5]',
-  },
-  supply: {
-    border: 'border-l-[#7fc8f8] hover:border-l-[#5aa9e6]',
-    iconBg: 'bg-[#f0f9ff] text-[#257bb5] border border-[#7fc8f8]/60',
-    label: 'text-[#257bb5]',
-  },
-  admin: {
-    border: 'border-l-[#ff6392] hover:border-l-[#e04f7b]',
-    iconBg: 'bg-[#fff0f5] text-[#d93b6e] border border-[#ff6392]/40',
-    label: 'text-[#d93b6e]',
-  },
-};
+import { useLanguage } from '../../context/LanguageContext';
 
 interface Props {
   code: string;
@@ -36,55 +17,51 @@ interface Props {
 export const RoleCard: React.FC<Props> = ({
   code, index, account, category, icon, isDisabled = false, isLoading = false, onSelect,
 }) => {
-  const accent = ACCENT_STYLES[category];
+  const { t } = useLanguage();
+  const roleName = formatRoleName(code, t);
 
   return (
     <button
       type="button"
       onClick={() => onSelect(code)}
       disabled={isDisabled}
-      aria-label={`Sign in as ${formatRoleName(code)}`}
-      className={`flex flex-col p-5 rounded-xl text-left h-full w-full transition-all duration-200 cursor-pointer
-                 bg-white hover:bg-slate-50/80 border border-slate-200/90 hover:border-slate-300 border-l-4 ${accent.border}
-                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2
-                 disabled:opacity-50 disabled:cursor-not-allowed group shadow-2xs hover:shadow-md`}
+      aria-busy={isLoading}
+      aria-label={t('landing.signInAs', { role: roleName })}
+      className="group flex h-full w-full cursor-pointer flex-col rounded-lg border border-border bg-card p-4 text-left hover:border-primary-text hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-60"
     >
-      {/* Top row: icon + role number chip */}
-      <div className="flex items-center justify-between mb-3 w-full">
-        <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${accent.iconBg}`}>
+      <div className="flex w-full items-start gap-3">
+        <span
+          aria-hidden="true"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border bg-primary-soft text-primary-text"
+        >
           {icon}
-        </div>
-        <span className="text-[11px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200/60">
-          ROLE {String(index + 1).padStart(2, '0')}
         </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-body font-semibold leading-snug text-foreground">{roleName}</h3>
+          <p className="mt-0.5 text-caption text-muted-foreground">
+            <span className="font-mono">{String(index + 1).padStart(2, '0')}</span>
+            <span aria-hidden="true"> · </span>
+            {t(`landing.cat.${category}`)}
+          </p>
+        </div>
       </div>
 
-      {/* Role title */}
-      <h3 className="text-sm font-extrabold text-slate-900 leading-snug mb-1 line-clamp-2 min-h-[2.5rem]">
-        {formatRoleName(code)}
-      </h3>
-
-      {/* Persona name */}
-      <p className="text-xs text-slate-700 font-semibold truncate mb-1 w-full">{account.name}</p>
-
-      {/* Email & Demo Credential note */}
-      <p className="text-[11px] font-mono text-slate-500 truncate w-full" title={account.email}>
-        {account.email}
-      </p>
-      <p className="text-[10px] font-mono text-slate-400 truncate w-full mt-0.5">
-        Credential: Demo@Health2026
+      <p className="mb-4 mt-3 text-small leading-relaxed text-muted-foreground">
+        {t(`landing.roleDesc.${code}`, account.name)}
       </p>
 
-      {/* "Sign in as →" pinned bottom */}
-      <div className="mt-auto pt-3 flex items-center justify-between border-t border-slate-100 w-full">
-        <span className={`text-xs font-bold ${accent.label}`}>
-          {isLoading ? 'Authenticating...' : 'Sign in as →'}
+      <div className="mt-auto flex w-full items-center justify-between gap-2 border-t border-border pt-3">
+        <span className="min-w-0 truncate font-mono text-caption text-muted-foreground" title={account.email}>
+          {account.email}
         </span>
-        {isLoading ? (
-          <Loader2 className="w-3.5 h-3.5 text-sky-600 animate-spin shrink-0" />
-        ) : (
-          <ArrowRight className={`w-3.5 h-3.5 shrink-0 opacity-70 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all ${accent.label}`} />
-        )}
+        <span className="flex shrink-0 items-center gap-1 text-small font-semibold text-primary-text">
+          {isLoading ? t('landing.signingIn') : t('landing.openWorkspace')}
+          {isLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5" aria-hidden="true" />
+          )}
+        </span>
       </div>
     </button>
   );

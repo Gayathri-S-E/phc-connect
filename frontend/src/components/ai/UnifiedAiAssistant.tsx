@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  Bot, X, Send, Loader2, Sparkles, AlertCircle, ChevronRight,
-  History, Plus, Trash2, RotateCcw, Siren, Check, ArrowLeft,
-  Volume2, ShieldAlert, MessageSquare, PhoneCall
+  X, Send, Loader2, Sparkles, ChevronRight, History, Plus, Trash2, RotateCcw, Siren, Check, ArrowLeft,
+  PhoneCall, PanelRightClose, TriangleAlert, LocateFixed,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
@@ -10,10 +9,13 @@ import { api } from '../../services/api';
 import type { ApiError } from '../../services/types';
 import { MicButton, SpeakButton } from './VoiceControls';
 import { Button } from '../ui/button';
-import { Badge } from '../ui/badge';
-import { Card } from '../ui/card';
+import { Input } from '../ui/input';
+import { StatusBadge } from '../ui/status-badge';
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from '../ui/sheet';
 import { cn } from '../../lib/utils';
 import { formatRoleName } from '../../utils/formatters';
+import { useShell } from '../layout/ShellContext';
+import { useNavCatalogue } from '../layout/nav-catalogue';
 
 type AssistantKey = 'PATIENT' | 'DOCTOR';
 
@@ -90,19 +92,29 @@ interface ChatMessage {
 }
 
 const ROLE_TO_ASSISTANT: Record<string, AssistantKey> = { PATIENT: 'PATIENT', DOCTOR: 'DOCTOR' };
-const TERMINAL_STATUSES = ['EXECUTED', 'FAILED', 'CANCELLED', 'EXPIRED'];
 
 let uid = 0;
 const nextId = () => `m${Date.now()}_${uid++}`;
 
 const isRetryableError = (e: ApiError) => e.status === 0 || e.status === 429 || e.status >= 500;
 
+const primaryButton = 'bg-primary text-primary-foreground hover:bg-primary-hover';
+
+/* ---------------------------------------------------------------------------------------------
+   Safe structured rendering: headings, bullet/numbered lists, **bold**, `code`. No HTML is ever injected:
+   everything becomes React text nodes.
+   --------------------------------------------------------------------------------------------- */
+
 const renderInline = (text: string, keyPrefix: string): React.ReactNode[] =>
-  text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
-    part.startsWith('**') && part.endsWith('**') && part.length > 4
-      ? <strong key={`${keyPrefix}-${i}`} className="font-bold text-slate-900">{part.slice(2, -2)}</strong>
-      : <React.Fragment key={`${keyPrefix}-${i}`}>{part}</React.Fragment>
-  );
+  text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+      return <strong key={`${keyPrefix}-${i}`} className="font-semibold text-foreground">{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith('`') && part.endsWith('`') && part.length > 2) {
+      return <code key={`${keyPrefix}-${i}`} className="rounded-sm bg-muted px-1 font-mono text-caption">{part.slice(1, -1)}</code>;
+    }
+    return <React.Fragment key={`${keyPrefix}-${i}`}>{part}</React.Fragment>;
+  });
 
 const Markdown: React.FC<{ text: string }> = ({ text }) => {
   const blocks: React.ReactNode[] = [];
@@ -113,7 +125,7 @@ const Markdown: React.FC<{ text: string }> = ({ text }) => {
     if (para.length) {
       const k = `p${blocks.length}`;
       blocks.push(
-        <p key={k} className="mb-2 leading-relaxed text-slate-800 text-xs sm:text-sm">
+        <p key={k} className="text-small leading-relaxed text-foreground">
           {para.flatMap((line, i) => [i > 0 ? <br key={`${k}-br${i}`} /> : null, ...renderInline(line, `${k}-${i}`)])}
         </p>
       );
@@ -125,7 +137,7 @@ const Markdown: React.FC<{ text: string }> = ({ text }) => {
       const k = `l${blocks.length}`;
       const Tag = list.ordered ? 'ol' : 'ul';
       blocks.push(
-        <Tag key={k} className="mb-2 pl-4 text-xs sm:text-sm leading-relaxed text-slate-800 list-disc space-y-1">
+        <Tag key={k} className={cn('space-y-1 pl-5 text-small leading-relaxed text-foreground', list.ordered ? 'list-decimal' : 'list-disc')}>
           {list.items.map((it, i) => <li key={i}>{renderInline(it, `${k}-${i}`)}</li>)}
         </Tag>
       );
@@ -135,9 +147,19 @@ const Markdown: React.FC<{ text: string }> = ({ text }) => {
 
   text.split(/\r?\n/).forEach((raw) => {
     const line = raw.trimEnd();
+    const heading = /^\s*#{1,6}\s+(.*)$/.exec(line);
     const bullet = /^\s*(?:[-*•])\s+(.*)$/.exec(line);
     const numbered = /^\s*\d+[.)]\s+(.*)$/.exec(line);
-    if (bullet || numbered) {
+    if (heading) {
+      flushPara();
+      flushList();
+      const k = `h${blocks.length}`;
+      blocks.push(
+        <h3 key={k} className="pt-1 text-small font-semibold text-foreground">
+          {renderInline(heading[1], k)}
+        </h3>
+      );
+    } else if (bullet || numbered) {
       flushPara();
       const ordered = !bullet;
       if (list && list.ordered !== ordered) flushList();
@@ -148,45 +170,30 @@ const Markdown: React.FC<{ text: string }> = ({ text }) => {
       flushList();
     } else {
       flushList();
-      para.push(line.replace(/^#{1,6}\s+/, ''));
+      para.push(line);
     }
   });
   flushPara();
   flushList();
-  return <div className="break-words space-y-1">{blocks}</div>;
+  return <div className="space-y-2 break-words">{blocks}</div>;
 };
 
-export interface UnifiedAiAssistantProps {
-  isOpen?: boolean;
-  onClose?: () => void;
-  onOpen?: () => void;
-  docked?: boolean;
-}
+/** Quiet AI marker: small label with the ai token tint. */
+const AiMarker: React.FC<{ label?: string }> = ({ label = 'AI' }) => (
+  <span className="inline-flex items-center gap-1 text-caption font-semibold text-ai-text">
+    <Sparkles className="size-3" aria-hidden="true" />
+    {label}
+  </span>
+);
 
-export const UnifiedAiAssistant: React.FC<UnifiedAiAssistantProps> = ({
-  isOpen: controlledIsOpen,
-  onClose,
-  onOpen,
-  docked = false,
-}) => {
+export const UnifiedAiAssistant: React.FC = () => {
   const { activeRole, scope } = useAuth();
   const { language, t } = useLanguage();
-  const [internalIsOpen, setInternalIsOpen] = useState(false);
-  const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen;
-
-  const setIsOpen = (val: boolean) => {
-    if (val) {
-      onOpen?.();
-      setInternalIsOpen(true);
-    } else {
-      onClose?.();
-      setInternalIsOpen(false);
-    }
-  };
+  const { aiOpen: isOpen, setAiOpen, aiDockable } = useShell();
+  const { current } = useNavCatalogue();
 
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [isModalActive, setIsModalActive] = useState(false);
 
   const assistantKey: AssistantKey | null = activeRole ? ROLE_TO_ASSISTANT[activeRole] ?? null : null;
   const [assistant, setAssistant] = useState<AssistantInfo | null>(null);
@@ -204,20 +211,10 @@ export const UnifiedAiAssistant: React.FC<UnifiedAiAssistantProps> = ({
   const epoch = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const wasOpen = useRef(false);
 
   const useCommonAi = assistantKey !== null;
   const langKey = (language as string) || 'en';
-
-  useEffect(() => {
-    const checkModal = () => {
-      const modal = document.querySelector('div[role="dialog"]:not([data-assistant="true"])');
-      setIsModalActive(!!modal);
-    };
-    checkModal();
-    const observer = new MutationObserver(checkModal);
-    observer.observe(document.body, { childList: true, subtree: true });
-    return () => observer.disconnect();
-  }, []);
 
   const getInitialMessage = (): string => {
     switch (activeRole) {
@@ -268,7 +265,17 @@ export const UnifiedAiAssistant: React.FC<UnifiedAiAssistantProps> = ({
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [messages, isLoading, view]);
+  }, [messages, isLoading, view, isOpen]);
+
+  // When the docked panel is opened from the top bar, put the cursor in the question field.
+  useEffect(() => {
+    if (isOpen && !wasOpen.current && aiDockable) {
+      const id = window.setTimeout(() => inputRef.current?.focus(), 0);
+      wasOpen.current = true;
+      return () => window.clearTimeout(id);
+    }
+    wasOpen.current = isOpen;
+  }, [isOpen, aiDockable]);
 
   const describeError = (e: ApiError): string => {
     if (e.status === 429) return t('ai.rateLimited') || 'You are sending messages too quickly. Please wait a moment and try again.';
@@ -343,6 +350,14 @@ export const UnifiedAiAssistant: React.FC<UnifiedAiAssistantProps> = ({
     void send(retryText, { skipUserBubble: true });
   };
 
+  const actionStatusText = (status: string): string => {
+    if (status === 'EXECUTED') return t('ai.action.done', 'Done.');
+    if (status === 'CANCELLED') return t('ai.action.cancelled', 'Cancelled. Nothing was changed.');
+    if (status === 'EXPIRED') return t('ai.action.expired', 'This request expired. Nothing was changed.');
+    if (status === 'FAILED') return t('ai.action.failed', 'This could not be completed. Nothing was changed.');
+    return status;
+  };
+
   const executeAction = async (actionId: string, confirm: boolean) => {
     if (actionsInFlight.current.has(actionId)) return;
     actionsInFlight.current.add(actionId);
@@ -374,7 +389,7 @@ export const UnifiedAiAssistant: React.FC<UnifiedAiAssistantProps> = ({
             ...m.action,
             busy: false,
             status: data.status,
-            resultMessage: data.message || (data.status === 'EXECUTED' ? t('ai.actionExecuted') : t('ai.actionCancelled')),
+            resultMessage: data.message || actionStatusText(data.status),
           },
         };
       })
@@ -434,387 +449,411 @@ export const UnifiedAiAssistant: React.FC<UnifiedAiAssistantProps> = ({
   const deleteConversation = async (id: string) => {
     if (!assistant) return;
     setDeletingId(id);
+    setHistoryError(null);
     const res = await api.delete(`/ai/${assistant.key}/conversations/${id}`);
     setDeletingId(null);
     if (!res.error) {
       setHistory((prev) => prev.filter((c) => c.id !== id));
       if (conversationId === id) resetConversation();
+    } else {
+      setHistoryError(t('ai.deleteFailed', 'Could not delete this conversation. Please try again.'));
     }
   };
 
   const starters: string[] = assistant?.starters?.[langKey] || assistant?.starters?.en || [];
   const notConfigured = assistant && !assistant.configured;
   const assistantBlocked = useCommonAi && assistantsState === 'error';
-  const inputDisabled = isLoading || inFlight.current || assistantBlocked || !!notConfigured;
+  const assistantPending = useCommonAi && !assistant && assistantsState !== 'error';
+  const inputDisabled = isLoading || inFlight.current || assistantBlocked || assistantPending || !!notConfigured;
 
   const getAssistantTitle = (): string => {
-    if (activeRole === 'PATIENT') return 'Citizen Health Assistant';
-    if (activeRole === 'DOCTOR') return 'Clinical Decision Support';
-    if (activeRole === 'NURSE') return 'Triage Clinical Assistant';
-    if (activeRole === 'PHARMACIST') return 'Formulary & Dispensary Assistant';
-    return `${activeRole ? formatRoleName(activeRole, t) : 'Health'} Assistant`;
+    if (activeRole === 'PATIENT') return t('ai.wellnessTitle', 'Citizen Health Assistant');
+    if (activeRole === 'DOCTOR') return t('ai.clinicalTitle', 'Clinical Decision Support');
+    if (activeRole === 'NURSE' || activeRole === 'PHARMACIST') return t('ai.assistant', 'AI Assistant');
+    return `${activeRole ? formatRoleName(activeRole, t) : 'Health'} ${t('ai.assistantSuffix', 'Assistant')}`;
   };
 
-  return (
-    <>
-      {/* Floating Assistant Trigger Pill (Only if uncontrolled and not docked) */}
-      {!isOpen && !isModalActive && !docked && controlledIsOpen === undefined && (
-        <button
-          type="button"
-          onClick={() => setIsOpen(true)}
-          aria-label={t('ai.openAssistant') || 'Open Health Assistant'}
-          className="fixed bottom-5 right-5 z-40 flex items-center gap-2.5 px-4 py-3 bg-gradient-to-r from-sky-600 to-teal-600 text-white font-bold text-xs rounded-full shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200 cursor-pointer"
-        >
-          <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
-            <Bot className="w-4 h-4 text-white" />
-          </div>
-          <span>{getAssistantTitle()}</span>
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-        </button>
-      )}
+  const title = getAssistantTitle();
+  const contextLabel = [current.sectionLabel, current.pageLabel].filter(Boolean).join(' / ');
 
-      {/* Backdrop for Slide-over Drawer (when controlled and not docked) */}
-      {isOpen && controlledIsOpen !== undefined && !docked && (
-        <div
-          className="fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-xs animate-fade-in"
-          onClick={() => setIsOpen(false)}
-        />
-      )}
+  /* ------------------------------------ panel ------------------------------------ */
 
-      {/* Assistant Container (Docked Rail, Slide-over Drawer, or Floating Card) */}
-      {isOpen && (
-        <div
-          data-assistant="true"
-          role={docked ? "region" : "dialog"}
-          aria-label={getAssistantTitle()}
-          className={
-            docked
-              ? "w-full h-full bg-white flex flex-col overflow-hidden"
-              : controlledIsOpen !== undefined
-              ? "fixed inset-y-0 right-0 z-50 w-full sm:w-[420px] bg-white border-l border-slate-200/90 shadow-2xl flex flex-col overflow-hidden animate-slide-left"
-              : "fixed bottom-4 right-4 z-50 w-full sm:w-[420px] h-[85vh] sm:h-[620px] max-h-[92vh] bg-white border border-slate-200/90 rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-scale-in"
-          }
-        >
-          {/* Header */}
-          <div className="px-4 py-3.5 bg-gradient-to-r from-sky-600 to-teal-600 text-white flex items-center justify-between gap-3 shrink-0">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
-                <Bot className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <h4 className="text-sm font-extrabold truncate leading-tight">
-                  {getAssistantTitle()}
-                </h4>
-                <div className="flex items-center gap-1.5 text-[10px] text-sky-100 font-medium truncate">
-                  <span>{activeRole ? formatRoleName(activeRole, t) : 'Health Network'}</span>
-                  {scope && <span>• {scope} Scope</span>}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-1 shrink-0">
-              {useCommonAi && assistant && (
-                <>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={view === 'history' ? () => setView('chat') : openHistory}
-                    title={view === 'history' ? 'Back to chat' : 'Conversation history'}
-                    className="text-white hover:bg-white/20"
-                  >
-                    {view === 'history' ? <ArrowLeft className="w-4 h-4" /> : <History className="w-4 h-4" />}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => { resetConversation(); setTimeout(() => inputRef.current?.focus(), 0); }}
-                    title="New conversation"
-                    className="text-white hover:bg-white/20"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </Button>
-                </>
-              )}
+  const renderPanel = (variant: 'docked' | 'sheet') => (
+    <div className="flex h-full min-h-0 flex-col bg-card">
+      {/* Header */}
+      <div className={cn('flex shrink-0 items-start justify-between gap-2 border-b border-border px-4 py-3', variant === 'sheet' && 'pr-12')}>
+        <div className="min-w-0 space-y-0.5">
+          <AiMarker label={t('ai.short', 'AI')} />
+          {variant === 'sheet' ? (
+            <SheetTitle className="truncate text-section-title">{title}</SheetTitle>
+          ) : (
+            <h2 className="truncate text-section-title text-foreground">{title}</h2>
+          )}
+          <p className="truncate text-caption text-muted-foreground">
+            {activeRole ? formatRoleName(activeRole, t) : 'Health Network'}
+            {scope ? ` · ${String(scope).toUpperCase()}` : ''}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-0.5">
+          {useCommonAi && assistant && (
+            <>
               <Button
                 variant="ghost"
                 size="icon-sm"
-                onClick={() => setIsOpen(false)}
-                title="Close assistant"
-                className="text-white hover:bg-white/20"
+                onClick={view === 'history' ? () => setView('chat') : openHistory}
+                aria-label={view === 'history' ? t('ai.backToChat', 'Back to chat') : t('ai.history', 'Conversation history')}
+                title={view === 'history' ? t('ai.backToChat', 'Back to chat') : t('ai.history', 'Conversation history')}
               >
-                <X className="w-4 h-4" />
+                {view === 'history' ? <ArrowLeft className="size-4" aria-hidden="true" /> : <History className="size-4" aria-hidden="true" />}
               </Button>
-            </div>
-          </div>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => { resetConversation(); setTimeout(() => inputRef.current?.focus(), 0); }}
+                aria-label={t('ai.newConversation', 'New conversation')}
+                title={t('ai.newConversation', 'New conversation')}
+              >
+                <Plus className="size-4" aria-hidden="true" />
+              </Button>
+            </>
+          )}
+          {variant === 'docked' && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setAiOpen(false)}
+              aria-label={t('ai.closeAssistant', 'Close AI Assistant')}
+              title={t('ai.closeAssistant', 'Close AI Assistant')}
+            >
+              <PanelRightClose className="size-4" aria-hidden="true" />
+            </Button>
+          )}
+        </div>
+      </div>
 
-          {/* Context banner */}
-          <div className="px-3.5 py-1.5 bg-sky-50 border-b border-sky-100 flex items-center justify-between text-[11px] text-sky-900 font-medium">
-            <span className="truncate">Context: {scope || 'Local Facility'} • {language.toUpperCase()}</span>
-            <span className="text-[10px] text-sky-600 font-bold uppercase tracking-wider">AI Verified</span>
-          </div>
+      {/* Context: UI only. It is NOT sent to the assistant and the assistant cannot see the page. */}
+      <div className="shrink-0 border-b border-border bg-muted/50 px-4 py-2">
+        <div className="flex items-center gap-1.5 text-caption font-semibold text-muted-foreground">
+          <LocateFixed className="size-3.5" aria-hidden="true" />
+          {t('ai.context', 'You are viewing')}
+        </div>
+        <p className="truncate text-small font-medium text-foreground" title={contextLabel}>{contextLabel}</p>
+        <p className="text-caption text-muted-foreground">
+          {t('ai.contextNote', 'For your reference only. The assistant does not see this page, so include the details it needs.')}
+        </p>
+      </div>
 
-          {/* Chat Body */}
-          <div
-            ref={scrollRef}
-            className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-slate-50/50"
-            aria-live="polite"
-          >
-            {view === 'history' ? (
-              <div className="space-y-2">
-                <div className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                  Conversation History
-                </div>
-                {historyLoading && (
-                  <div className="flex items-center gap-2 text-xs text-slate-500 py-4 justify-center">
-                    <Loader2 className="w-4 h-4 animate-spin text-sky-600" />
-                    Loading past sessions...
-                  </div>
-                )}
-                {!historyLoading && history.length === 0 && (
-                  <div className="text-xs text-slate-400 py-6 text-center">
-                    No previous conversations found.
-                  </div>
-                )}
-                {history.map((c) => (
-                  <div
-                    key={c.id}
-                    className="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 bg-white hover:border-slate-300 shadow-2xs transition"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => void openConversation(c.id)}
-                      className="flex-1 text-left min-w-0 pr-2 cursor-pointer"
-                    >
-                      <div className="text-xs font-bold text-slate-900 truncate">
-                        {c.title || 'Health Conversation'}
-                      </div>
-                      <div className="text-[10px] text-slate-400 mt-0.5">
-                        {new Date(c.updated_at).toLocaleDateString()}
-                      </div>
-                    </button>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => void deleteConversation(c.id)}
-                      disabled={deletingId === c.id}
-                      className="text-slate-400 hover:text-red-600"
-                    >
-                      {deletingId === c.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                    </Button>
-                  </div>
-                ))}
+      {/* Conversation */}
+      <div
+        ref={scrollRef}
+        role="log"
+        aria-live="polite"
+        aria-relevant="additions text"
+        aria-label={title}
+        className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4"
+      >
+        {view === 'history' ? (
+          <div className="space-y-2">
+            <h3 className="text-small font-semibold text-foreground">{t('ai.history', 'Conversation history')}</h3>
+            {historyLoading && (
+              <div className="flex items-center gap-2 py-3 text-small text-muted-foreground" role="status">
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                {t('state.loading', 'Loading')}
               </div>
-            ) : (
-              <>
-                {/* Initial Assistant greeting */}
-                {messages.length === 0 && (
-                  <div className="space-y-3">
-                    <div className="p-3.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-700 leading-relaxed shadow-2xs">
-                      <div className="flex items-center gap-2 mb-1.5 font-bold text-sky-900">
-                        <Sparkles className="w-4 h-4 text-sky-600" />
-                        <span>Welcome to Med2Us Copilot</span>
-                      </div>
-                      <p>{getInitialMessage()}</p>
-                    </div>
+            )}
+            {historyError && <p className="text-small text-danger-text">{historyError}</p>}
+            {!historyLoading && !historyError && history.length === 0 && (
+              <p className="py-3 text-small text-muted-foreground">{t('ai.noConversations', 'No previous conversations yet.')}</p>
+            )}
+            <ul className="space-y-1.5">
+              {history.map((c) => (
+                <li key={c.id} className="flex items-center justify-between gap-1 rounded-lg border border-border bg-card pr-1 hover:bg-accent">
+                  <button
+                    type="button"
+                    onClick={() => void openConversation(c.id)}
+                    className="min-w-0 flex-1 cursor-pointer rounded-lg px-3 py-2 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+                  >
+                    <span className="block truncate text-small font-medium text-foreground">{c.title || t('ai.untitled', 'Conversation')}</span>
+                    <span className="block text-caption text-muted-foreground">{new Date(c.updated_at).toLocaleDateString()}</span>
+                  </button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => void deleteConversation(c.id)}
+                    disabled={deletingId === c.id}
+                    aria-label={t('ai.deleteConversation', 'Delete conversation')}
+                    title={t('ai.deleteConversation', 'Delete conversation')}
+                    className="text-muted-foreground hover:text-danger-text"
+                  >
+                    {deletingId === c.id ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <Trash2 className="size-3.5" aria-hidden="true" />}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <>
+            {/* Availability notices */}
+            {assistantBlocked && (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-warning-border bg-warning-soft p-3 text-small text-warning-text">
+                <span className="flex items-center gap-2">
+                  <TriangleAlert className="size-4 shrink-0" aria-hidden="true" />
+                  {t('ai.unavailable', 'The AI assistant is not available right now.')}
+                </span>
+                <Button variant="outline" size="sm" onClick={() => void loadAssistants()}>
+                  <RotateCcw className="size-3.5" aria-hidden="true" />
+                  {t('ai.retry', 'Retry')}
+                </Button>
+              </div>
+            )}
+            {notConfigured && (
+              <div className="flex items-center gap-2 rounded-lg border border-warning-border bg-warning-soft p-3 text-small text-warning-text">
+                <TriangleAlert className="size-4 shrink-0" aria-hidden="true" />
+                {t('ai.notConfigured', 'The AI service is not configured on this server yet.')}
+              </div>
+            )}
 
-                    {starters.length > 0 && (
-                      <div className="space-y-1.5">
-                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                          Suggested questions
-                        </span>
-                        <div className="flex flex-col gap-1.5">
-                          {starters.slice(0, 4).map((s, i) => (
-                            <button
-                              key={i}
-                              type="button"
-                              onClick={() => void send(s)}
-                              disabled={inputDisabled}
-                              className="text-left px-3 py-2 rounded-lg border border-sky-100 bg-sky-50/70 hover:bg-sky-100 hover:border-sky-200 text-xs font-semibold text-sky-900 transition cursor-pointer flex items-center justify-between"
-                            >
-                              <span className="truncate">{s}</span>
-                              <ChevronRight className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                            </button>
-                          ))}
+            {/* Empty state: what it can do + starters */}
+            {messages.length === 0 && (
+              <div className="space-y-3">
+                <p className="text-small leading-relaxed text-foreground">{getInitialMessage()}</p>
+                {starters.length > 0 && (
+                  <div className="space-y-1.5">
+                    <h3 className="text-caption font-semibold text-muted-foreground">{t('ai.starters', 'Suggested questions')}</h3>
+                    <ul className="space-y-1.5">
+                      {starters.slice(0, 4).map((s, i) => (
+                        <li key={i}>
+                          <button
+                            type="button"
+                            onClick={() => void send(s)}
+                            disabled={inputDisabled}
+                            className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-md border border-border bg-card px-3 py-2 text-left text-small font-medium text-foreground transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <span>{s}</span>
+                            <ChevronRight className="size-4 shrink-0 text-primary-text" aria-hidden="true" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Messages */}
+            {messages.map((msg) => {
+              if (msg.sender === 'user') {
+                return (
+                  <div key={msg.id} className="flex justify-end animate-fade-in">
+                    <div className="max-w-[90%] whitespace-pre-wrap break-words rounded-lg bg-secondary px-3 py-2 text-small text-secondary-foreground">
+                      {msg.text}
+                    </div>
+                  </div>
+                );
+              }
+              return (
+                <div key={msg.id} className="space-y-2 animate-fade-in">
+                  {msg.emergency && (
+                    <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-danger-border bg-danger-soft p-3 text-small font-semibold text-danger-text">
+                      <span className="flex items-center gap-2">
+                        <Siren className="size-4 shrink-0" aria-hidden="true" />
+                        {t('ai.emergency', 'This may be an emergency. Seek urgent medical help now or call 108.')}
+                      </span>
+                      <a
+                        href="tel:108"
+                        className="inline-flex items-center gap-1.5 rounded-md bg-danger px-2.5 py-1.5 text-caption font-semibold text-danger-foreground hover:bg-destructive-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                      >
+                        <PhoneCall className="size-3.5" aria-hidden="true" />
+                        Call 108
+                      </a>
+                    </div>
+                  )}
+
+                  <div
+                    className={cn(
+                      'space-y-2 border-l-2 pl-3',
+                      msg.error ? 'border-danger-border' : msg.emergency ? 'border-danger-border' : 'border-ai-border'
+                    )}
+                  >
+                    {!msg.error && <AiMarker label={t('ai.short', 'AI')} />}
+                    {msg.error ? (
+                      <p className="text-small text-danger-text">{msg.text}</p>
+                    ) : (
+                      <Markdown text={msg.text} />
+                    )}
+
+                    {msg.refused && (
+                      <div className="flex items-start gap-2 rounded-md border border-warning-border bg-warning-soft p-2 text-caption font-medium text-warning-text">
+                        <TriangleAlert className="mt-px size-3.5 shrink-0" aria-hidden="true" />
+                        {t('ai.safetyWarning', 'Request outside authorized safety bounds.')}
+                      </div>
+                    )}
+
+                    {/* Decision block for a proposed action */}
+                    {msg.action && (
+                      <div className="overflow-hidden rounded-lg border border-border bg-card">
+                        <div className="border-b border-border bg-muted px-3 py-1.5 text-caption font-semibold text-muted-foreground">
+                          {t('ai.action.title', 'Action awaiting your confirmation')}
+                        </div>
+                        <div className="space-y-3 p-3">
+                          <p className="text-small font-medium text-foreground">{msg.action.summary}</p>
+                          {msg.action.status === 'PENDING' ? (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Button
+                                size="sm"
+                                disabled={msg.action.busy}
+                                onClick={() => void executeAction(msg.action!.id, true)}
+                                className={primaryButton}
+                              >
+                                {msg.action.busy ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : <Check className="size-3.5" aria-hidden="true" />}
+                                {t('ai.action.confirm', 'Confirm')}
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={msg.action.busy}
+                                onClick={() => void executeAction(msg.action!.id, false)}
+                              >
+                                {t('ai.action.cancel', 'Cancel')}
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="flex flex-wrap items-center gap-2" role="status">
+                              <StatusBadge
+                                status={msg.action.status === 'EXECUTED' ? 'success' : msg.action.status === 'FAILED' ? 'danger' : 'neutral'}
+                                label={msg.action.status === 'EXECUTED' ? t('ai.action.confirm', 'Confirm') : msg.action.status.charAt(0) + msg.action.status.slice(1).toLowerCase()}
+                              />
+                              <span className="text-small text-foreground">{msg.action.resultMessage || actionStatusText(msg.action.status)}</span>
+                            </div>
+                          )}
+                          {msg.action.error && <p className="text-small text-danger-text">{msg.action.error}</p>}
                         </div>
                       </div>
                     )}
-                  </div>
-                )}
 
-                {/* Message bubbles */}
-                {messages.map((msg) => {
-                  const isUser = msg.sender === 'user';
-                  return (
-                    <div
-                      key={msg.id}
-                      className={cn('flex flex-col gap-1', isUser ? 'items-end' : 'items-start')}
-                    >
-                      {/* Emergency Alert Header */}
-                      {msg.emergency && (
-                        <div className="w-full p-2.5 rounded-xl bg-red-600 text-white text-xs font-bold flex items-center justify-between gap-2 shadow-xs animate-fade-in">
-                          <div className="flex items-center gap-2">
-                            <Siren className="w-4 h-4 animate-bounce shrink-0" />
-                            <span>URGENT: Immediate Medical Attention Needed</span>
-                          </div>
-                          <a
-                            href="tel:108"
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-white text-red-700 font-extrabold text-[11px] hover:bg-red-50 shrink-0"
-                          >
-                            <PhoneCall className="w-3 h-3" />
-                            Call 108
-                          </a>
-                        </div>
-                      )}
+                    {msg.error?.retryable && (
+                      <Button variant="outline" size="sm" onClick={() => retry(msg.id, msg.error!.retryText)} disabled={isLoading}>
+                        <RotateCcw className="size-3.5" aria-hidden="true" />
+                        {t('ai.retry', 'Retry')}
+                      </Button>
+                    )}
 
-                      {/* Bubble */}
-                      <div
-                        className={cn(
-                          'p-3 rounded-2xl text-xs sm:text-sm max-w-[88%] shadow-2xs leading-relaxed',
-                          isUser
-                            ? 'bg-sky-600 text-white rounded-br-xs'
-                            : msg.error
-                            ? 'bg-red-50 text-red-900 border border-red-200 rounded-bl-xs'
-                            : msg.emergency
-                            ? 'bg-white text-slate-900 border-2 border-red-500 rounded-bl-xs'
-                            : 'bg-white text-slate-900 border border-slate-200/90 rounded-bl-xs'
-                        )}
-                      >
-                        {isUser || msg.error ? msg.text : <Markdown text={msg.text} />}
-
-                        {/* Safety Notice */}
-                        {msg.refused && (
-                          <div className="mt-2 p-2 rounded-lg bg-red-50 border border-red-200 text-red-700 text-[11px] flex items-center gap-1.5 font-semibold">
-                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                            Clinical Safety Warning: Medical consultation required.
-                          </div>
-                        )}
-
-                        {/* Pending Action Confirmation */}
-                        {msg.action && (
-                          <div className="mt-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-                            <div className="text-[11px] font-bold text-slate-700">
-                              Proposed Action: {msg.action.summary}
-                            </div>
-                            {msg.action.status === 'PENDING' ? (
-                              <div className="flex items-center gap-2">
-                                <Button
-                                  variant="emerald"
-                                  size="sm"
-                                  disabled={msg.action.busy}
-                                  onClick={() => executeAction(msg.action!.id, true)}
-                                  className="h-7 text-xs px-2.5"
-                                >
-                                  <Check className="w-3 h-3 mr-1" />
-                                  Confirm &amp; Proceed
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  disabled={msg.action.busy}
-                                  onClick={() => executeAction(msg.action!.id, false)}
-                                  className="h-7 text-xs px-2.5 text-red-600 hover:bg-red-50"
-                                >
-                                  Cancel
-                                </Button>
-                              </div>
-                            ) : (
-                              <div className="text-[11px] font-semibold text-emerald-700 flex items-center gap-1">
-                                <Check className="w-3 h-3" />
-                                {msg.action.resultMessage || `Action status: ${msg.action.status}`}
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Retry */}
-                        {msg.error?.retryable && (
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => retry(msg.id, msg.error!.retryText)}
-                            disabled={isLoading}
-                            className="h-7 text-[11px] mt-2 px-2.5"
-                          >
-                            <RotateCcw className="w-3 h-3 mr-1" />
-                            Retry
-                          </Button>
-                        )}
+                    {msg.sources && msg.sources.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-caption text-muted-foreground">{t('ai.sources', 'Sources')}:</span>
+                        {msg.sources.map((s, idx) => (
+                          <span key={idx} className="rounded-md border border-ai-border bg-ai-soft px-1.5 py-0.5 text-caption text-ai-text">
+                            {s}
+                          </span>
+                        ))}
                       </div>
-
-                      {/* Evidence Citations / Sources */}
-                      {msg.sources && msg.sources.length > 0 && (
-                        <div className="flex flex-wrap gap-1 px-1 mt-0.5">
-                          <span className="text-[10px] text-slate-400">Sources:</span>
-                          {msg.sources.map((s, idx) => (
-                            <span
-                              key={idx}
-                              className="text-[10px] px-1.5 py-0.5 rounded bg-sky-50 border border-sky-100 text-sky-700 font-medium"
-                            >
-                              {s}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-
-                {/* Loading indicator */}
-                {isLoading && (
-                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-500 w-fit">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-sky-600" />
-                    <span>Analyzing health context...</span>
+                    )}
                   </div>
-                )}
-              </>
+                </div>
+              );
+            })}
+
+            {(isLoading || assistantPending) && view === 'chat' && (
+              <div role="status" className="flex items-center gap-2 text-small text-muted-foreground">
+                <Loader2 className="size-4 animate-spin text-ai-text" aria-hidden="true" />
+                {t('ai.analyzing', 'Analyzing authorized data...')}
+              </div>
             )}
-          </div>
+          </>
+        )}
+      </div>
 
-          {/* Clinical Disclaimer */}
-          <div className="px-3 py-1 bg-slate-100/90 border-t border-slate-200 text-[10px] text-slate-500 text-center">
-            {t('ai.disclaimer') || 'Informational guidance only. For medical emergencies, consult a healthcare officer or dial 108.'}
-          </div>
-
-          {/* Input Footer */}
-          {view === 'chat' && (
-            <form
-              onSubmit={(e) => { e.preventDefault(); void send(input); }}
-              className="p-3 border-t border-slate-200 bg-white flex items-center gap-2 shrink-0"
+      {/* Input */}
+      {view === 'chat' && (
+        <div className="shrink-0 space-y-1.5 border-t border-border p-3">
+          <form
+            onSubmit={(e) => { e.preventDefault(); void send(input); }}
+            className="flex items-center gap-2"
+          >
+            <MicButton
+              language={langKey}
+              disabled={assistantBlocked || !!notConfigured}
+              onTranscript={(text) => setInput((prev) => (prev ? `${prev} ${text}` : text).slice(0, 4000))}
+            />
+            <Input
+              ref={inputRef}
+              type="text"
+              value={input}
+              maxLength={4000}
+              onChange={(e) => setInput(e.target.value)}
+              disabled={inputDisabled}
+              aria-label={t('ai.askPlaceholder') || 'Ask health question or clinical query...'}
+              placeholder={t('ai.askPlaceholder') || 'Ask health question or clinical query...'}
+              className="h-10 min-w-0 flex-1"
+            />
+            <Button
+              type="submit"
+              size="icon"
+              disabled={inputDisabled || !input.trim()}
+              aria-label={t('ai.send', 'Send')}
+              title={t('ai.send', 'Send')}
+              className={cn('size-10 shrink-0', primaryButton)}
             >
-              <MicButton
-                language={langKey}
-                disabled={assistantBlocked || !!notConfigured}
-                onTranscript={(text) => setInput((prev) => (prev ? `${prev} ${text}` : text).slice(0, 4000))}
-              />
-              <input
-                ref={inputRef}
-                type="text"
-                value={input}
-                maxLength={4000}
-                onChange={(e) => setInput(e.target.value)}
-                disabled={inputDisabled}
-                aria-label={t('ai.askPlaceholder') || 'Ask health question or clinical query...'}
-                placeholder={t('ai.askPlaceholder') || 'Ask health question or clinical query...'}
-                className="flex-1 min-w-0 h-9 px-3 text-xs bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-sky-500 focus:bg-white text-slate-900 transition"
-              />
-              <Button
-                type="submit"
-                variant="primary"
-                size="icon"
-                disabled={inputDisabled || !input.trim()}
-                title="Send message"
-                className="h-9 w-9 shrink-0"
-              >
-                <Send className="w-4 h-4" />
-              </Button>
-              <SpeakButton
-                language={langKey}
-                textToSpeak={[...messages].reverse().find((m) => m.sender === 'assistant' && !m.error)?.text ?? ''}
-              />
-            </form>
-          )}
+              <Send className="size-4" aria-hidden="true" />
+            </Button>
+            <SpeakButton
+              language={langKey}
+              textToSpeak={[...messages].reverse().find((m) => m.sender === 'assistant' && !m.error)?.text ?? ''}
+            />
+          </form>
+          <p className="text-caption text-muted-foreground">
+            {t('ai.disclaimer') || 'Informational guidance only. For medical emergencies, consult a healthcare officer or dial 108.'}
+          </p>
         </div>
       )}
-    </>
+    </div>
+  );
+
+  /* ------------------------------ placement ------------------------------ */
+
+  if (!aiDockable) {
+    // Below xl: bottom sheet (Radix: focus trap, Escape, scroll lock)
+    return (
+      <Sheet open={isOpen} onOpenChange={setAiOpen}>
+        <SheetContent
+          side="bottom"
+          closeLabel={t('ai.closeAssistant', 'Close AI Assistant')}
+          aria-describedby={undefined}
+          className="h-[85dvh] max-h-[85dvh] gap-0 overflow-hidden p-0"
+        >
+          <SheetDescription className="sr-only">{t('ai.disclaimer', 'Decision-support assistance only.')}</SheetDescription>
+          {renderPanel('sheet')}
+        </SheetContent>
+      </Sheet>
+    );
+  }
+
+  if (!isOpen) {
+    // xl, collapsed: slim tab
+    return (
+      <aside aria-label={title} className="flex w-10 shrink-0 flex-col items-center border-l border-border bg-card py-3">
+        <button
+          type="button"
+          onClick={() => setAiOpen(true)}
+          aria-expanded={false}
+          aria-label={t('ai.openAssistant', 'Open AI Assistant')}
+          title={t('ai.openAssistant', 'Open AI Assistant')}
+          className="flex cursor-pointer flex-col items-center gap-3 rounded-md px-1.5 py-2 text-ai-text transition-colors hover:bg-ai-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        >
+          <Sparkles className="size-4" aria-hidden="true" />
+          <span className="text-caption font-semibold [writing-mode:vertical-rl]">{t('ai.assistant', 'AI Assistant')}</span>
+        </button>
+      </aside>
+    );
+  }
+
+  // xl, open: docked column that shares the layout
+  return (
+    <aside aria-label={title} className="flex w-[24rem] shrink-0 flex-col border-l border-border bg-card animate-fade-in 2xl:w-[26rem]">
+      {renderPanel('docked')}
+    </aside>
   );
 };
+
+// X is used by Sheet's built-in close control; re-exported icon import kept out of the bundle.
+void X;

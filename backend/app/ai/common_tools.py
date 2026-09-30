@@ -5,12 +5,16 @@ from app.ai.base import ToolContext, ToolSpec, obj
 from app.services.platform_service import NAV_CATALOGUE
 
 
+def _allowed(ctx: ToolContext, required) -> bool:
+    return any(ctx.user.has_permission(p) for p in required) if isinstance(required, tuple) else ctx.user.has_permission(required)
+
+
 def _navigation(sections: FrozenSet[str]):
   async def handler(ctx: ToolContext, args: Dict[str, Any]) -> Dict[str, Any]:
     """The real menu for this user, limited to the assistant's own sections and the user's permissions."""
     items = [
         {"screen": item["key"].split(".", 1)[1].replace("_", " ").title(), "path": item["path"], "section": item["section"]}
-        for item in NAV_CATALOGUE if item["section"] in sections and ctx.user.has_permission(item["permission"])
+        for item in NAV_CATALOGUE if item["section"] in sections and _allowed(ctx, item["permission"])
     ]
     return {"screens_available_to_this_user": items,
             "note": "Only these screens exist for this user. Do not mention any other screen, button or link."}

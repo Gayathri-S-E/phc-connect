@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Mic, Square, Volume2, Loader2, VolumeX } from 'lucide-react';
 import { api } from '../../services/api';
+import { cn } from '../../lib/utils';
 
 /* Voice controls for the AI assistants: a microphone button (record -> Google Speech-to-Text) and a speak button
-   (Google Text-to-Speech). Standalone: styled inline, no context dependencies. Degrades gracefully when the
+   (Google Text-to-Speech). Standalone: styled with design tokens, no context dependencies. Degrades gracefully when the
    server has no Google credentials (503) or the browser/user denies the microphone. */
 
 export type VoiceLanguage = 'en' | 'ta' | 'hi' | (string & {});
@@ -52,15 +53,8 @@ const pickMime = (): string | null => {
   return MIME_CANDIDATES.find((m) => MediaRecorder.isTypeSupported(m)) ?? null;
 };
 
-const baseButton: React.CSSProperties = {
-  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-  width: 44, height: 44, minWidth: 44, borderRadius: '50%', border: '1px solid #cbd5e1',
-  background: '#fff', color: '#0f172a', cursor: 'pointer', padding: 0, touchAction: 'manipulation',
-};
-const disabledStyle: React.CSSProperties = { opacity: 0.45, cursor: 'not-allowed' };
-const srOnly: React.CSSProperties = {
-  position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap',
-};
+const baseButton =
+  'inline-flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-md border border-input bg-card p-0 text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50 [touch-action:manipulation]';
 
 /* ------------------------------ Mic button ------------------------------ */
 
@@ -172,7 +166,7 @@ export const MicButton: React.FC<MicButtonProps> = ({ onTranscript, language = '
     : recording ? t(language, 'stop') : phase === 'sending' ? t(language, 'transcribing') : t(language, 'record');
 
   return (
-    <span style={{ display: 'inline-flex', position: 'relative' }}>
+    <span className="relative inline-flex">
       <button
         type="button"
         onClick={recording ? stop : start}
@@ -180,16 +174,12 @@ export const MicButton: React.FC<MicButtonProps> = ({ onTranscript, language = '
         aria-label={label}
         aria-pressed={recording}
         title={label}
-        style={{
-          ...baseButton,
-          ...(off ? disabledStyle : {}),
-          ...(recording ? { background: '#dc2626', color: '#fff', borderColor: '#dc2626' } : {}),
-        }}
+        className={cn(baseButton, recording && 'border-danger bg-danger text-danger-foreground hover:bg-destructive-hover')}
       >
-        {phase === 'sending' ? <Loader2 size={20} aria-hidden="true" className="animate-spin" />
+        {phase === 'sending' ? <Loader2 size={18} aria-hidden="true" className="animate-spin" />
           : recording ? <Square size={18} aria-hidden="true" /> : <Mic size={20} aria-hidden="true" />}
       </button>
-      <span role="status" aria-live="polite" style={srOnly}>
+      <span role="status" aria-live="polite" className="sr-only">
         {recording ? t(language, 'listening') : phase === 'sending' ? t(language, 'transcribing') : message}
       </span>
     </span>
@@ -260,9 +250,9 @@ export const SpeakButton: React.FC<SpeakButtonProps> = ({ textToSpeak, language 
       aria-label={label}
       aria-pressed={phase === 'playing'}
       title={label}
-      style={{ ...baseButton, ...(off ? disabledStyle : {}) }}
+      className={baseButton}
     >
-      {phase === 'loading' ? <Loader2 size={20} aria-hidden="true" className="animate-spin" />
+      {phase === 'loading' ? <Loader2 size={18} aria-hidden="true" className="animate-spin" />
         : phase === 'playing' ? <VolumeX size={20} aria-hidden="true" /> : <Volume2 size={20} aria-hidden="true" />}
     </button>
   );
@@ -285,8 +275,7 @@ export interface VoiceControlsProps {
 export const VoiceControls: React.FC<VoiceControlsProps> = ({
   onTranscript, textToSpeak, language = 'en', disabled, onError, className,
 }) => (
-  <span className={className} role="group" aria-label="Voice controls"
-    style={{ display: 'inline-flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+  <span className={cn('inline-flex flex-wrap items-center gap-2', className)} role="group" aria-label="Voice controls">
     <MicButton onTranscript={onTranscript} language={language} disabled={disabled} onError={onError} />
     {textToSpeak !== undefined && (
       <SpeakButton textToSpeak={textToSpeak} language={language} disabled={disabled} onError={onError} />

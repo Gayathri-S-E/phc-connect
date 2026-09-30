@@ -1,19 +1,69 @@
 import React from 'react';
-import { AlertOctagon, ShieldAlert, Inbox, WifiOff, RefreshCw } from 'lucide-react';
+import { AlertOctagon, Clock, Inbox, LockKeyhole, RefreshCw, SearchX, ShieldAlert, WifiOff } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
+import { EmptyState } from '../ui/empty-state';
+import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
+import { cn } from '../../lib/utils';
+
+export type StateViewKind = 'loading' | 'empty' | 'error' | '401' | '403' | '404' | 'offline' | 'stale';
 
 interface StateViewProps {
-  state?: 'loading' | 'empty' | 'error' | '401' | '403' | '404' | 'offline';
-  type?: 'loading' | 'empty' | 'error' | '401' | '403' | '404' | 'offline';
+  state?: StateViewKind;
+  type?: StateViewKind;
+  /** empty: WHAT this is (e.g. "No appointments"). error/forbidden: the heading. */
   title?: string;
+  /** empty: WHY it matters / what it is for. error: what happened. stale: extra detail. */
   message?: string;
   onRetry?: () => void;
+  /** Next action (real actions only). For empty: primary call to action. For 403/401/404: navigation away. */
   actionText?: string;
   onAction?: () => void;
+  /** stale: when the data was last refreshed (already formatted). */
+  since?: string;
+  /** loading: `page` = header + metrics + table skeleton (default); `inline` = a few lines; `table` = rows only. */
+  layout?: 'page' | 'inline' | 'table';
+  className?: string;
 }
 
+const Panel: React.FC<{ icon: React.ReactNode; title: string; body?: string; actions?: React.ReactNode; tone?: 'danger' | 'neutral'; className?: string }> = ({
+  icon,
+  title,
+  body,
+  actions,
+  tone = 'neutral',
+  className,
+}) => (
+  <div
+    role={tone === 'danger' ? 'alert' : undefined}
+    className={cn(
+      'flex flex-col items-start gap-4 rounded-lg border bg-card p-6 animate-fade-in sm:flex-row sm:items-center',
+      tone === 'danger' ? 'border-danger-border' : 'border-border',
+      className
+    )}
+  >
+    <div
+      aria-hidden="true"
+      className={cn(
+        'flex size-10 shrink-0 items-center justify-center rounded-lg [&_svg]:size-5',
+        tone === 'danger' ? 'bg-danger-soft text-danger-text' : 'bg-secondary text-primary-text'
+      )}
+    >
+      {icon}
+    </div>
+    <div className="min-w-0 flex-1 space-y-1">
+      <h2 className="text-section-title text-foreground">{title}</h2>
+      {body && <p className="max-w-prose text-small text-muted-foreground">{body}</p>}
+    </div>
+    {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+  </div>
+);
+
+/**
+ * One component for every data state: loading skeleton, empty (what + why + next), error with retry,
+ * forbidden / signed-out / not found, offline, and a non-blocking stale-data notice.
+ */
 export const StateView: React.FC<StateViewProps> = ({
   state,
   type,
@@ -22,122 +72,180 @@ export const StateView: React.FC<StateViewProps> = ({
   onRetry,
   actionText,
   onAction,
+  since,
+  layout = 'page',
+  className,
 }) => {
   const { t } = useLanguage();
-  const currentState = state || type || 'loading';
+  const current: StateViewKind = state || type || 'loading';
+  const retryButton = onRetry ? (
+    <Button variant="outline" size="sm" onClick={onRetry} className="gap-2">
+      <RefreshCw className="size-3.5" aria-hidden="true" />
+      {t('state.retry', 'Retry')}
+    </Button>
+  ) : null;
+  const actionButton = onAction ? (
+    <Button variant="outline" size="sm" onClick={onAction}>
+      {actionText}
+    </Button>
+  ) : null;
 
-  if (currentState === 'loading') {
+  if (current === 'loading') {
+    const status = (
+      <span className="sr-only">{message || t('state.loading', 'Loading')}</span>
+    );
+    if (layout === 'inline') {
+      return (
+        <div role="status" aria-busy="true" className={cn('w-full space-y-2 py-2 animate-fade-in', className)}>
+          {status}
+          <Skeleton className="h-4 w-2/3" />
+          <Skeleton className="h-4 w-1/2" />
+          <Skeleton className="h-4 w-3/5" />
+        </div>
+      );
+    }
+    const table = (
+      <div className="overflow-hidden rounded-lg border border-border bg-card">
+        <div className="border-b border-border bg-muted px-4 py-3">
+          <Skeleton className="h-3.5 w-40 bg-border" />
+        </div>
+        <div className="divide-y divide-border">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div key={i} className="flex items-center gap-4 px-4 py-3">
+              <Skeleton className="h-4 w-1/4" />
+              <Skeleton className="h-4 w-1/3" />
+              <Skeleton className="hidden h-4 w-1/6 sm:block" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+    if (layout === 'table') {
+      return (
+        <div role="status" aria-busy="true" className={cn('w-full animate-fade-in', className)}>
+          {status}
+          {table}
+        </div>
+      );
+    }
     return (
-      <div role="status" aria-busy="true" className="w-full space-y-6 py-4 animate-fade-in">
-        <span className="sr-only">{message || t('state.loading')}</span>
-        {/* Page heading */}
+      <div role="status" aria-busy="true" className={cn('w-full space-y-5 py-1 animate-fade-in', className)}>
+        {status}
         <div className="space-y-2">
           <Skeleton className="h-7 w-64 max-w-full" />
           <Skeleton className="h-4 w-96 max-w-full" />
         </div>
-        {/* Stat cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border lg:grid-cols-4">
           {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+            <div key={i} className="space-y-2 bg-card p-3">
               <Skeleton className="h-3 w-24" />
-              <Skeleton className="h-8 w-20" />
-              <Skeleton className="h-3 w-32" />
+              <Skeleton className="h-6 w-16" />
             </div>
           ))}
         </div>
-        {/* Table */}
-        <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
-          <Skeleton className="h-5 w-40" />
-          {[0, 1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-9 w-full" />
-          ))}
-        </div>
+        {table}
       </div>
     );
   }
 
-  if (currentState === 'empty') {
+  if (current === 'empty') {
     return (
-      <div className="flex flex-col items-center justify-center py-12 px-6 text-center gap-3 bg-slate-50/70 rounded-2xl border border-dashed border-slate-300 animate-fade-in">
-        <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 shadow-2xs">
-          <Inbox className="w-6 h-6" />
-        </div>
-        <div className="space-y-1">
-          <h4 className="text-base font-bold text-slate-900">{title || t('state.empty')}</h4>
-          <p className="text-xs text-slate-500 max-w-md leading-relaxed">
-            {message || 'No items available at this moment. New records will appear here as they are processed.'}
-          </p>
-        </div>
-        {actionText && onAction && (
-          <Button variant="primary" size="sm" onClick={onAction} className="mt-2">
-            {actionText}
-          </Button>
-        )}
-      </div>
+      <EmptyState
+        className={cn('animate-fade-in', className)}
+        icon={<Inbox />}
+        title={title || t('state.empty', 'No records found in this view.')}
+        why={message}
+        action={
+          onAction && actionText ? (
+            <Button variant="outline" size="sm" onClick={onAction}>
+              {actionText}
+            </Button>
+          ) : undefined
+        }
+      />
     );
   }
 
-  if (currentState === '403') {
+  if (current === 'stale') {
     return (
-      <div className="flex flex-col items-center justify-center py-16 px-6 text-center gap-4 bg-red-50/40 rounded-2xl border border-red-200 animate-fade-in">
-        <div className="w-14 h-14 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center shadow-xs">
-          <ShieldAlert className="w-7 h-7" />
-        </div>
-        <div className="space-y-1">
-          <h3 className="text-lg font-bold text-slate-900">403 — {title || 'Access Restricted'}</h3>
-          <p className="text-xs text-slate-600 max-w-md leading-relaxed">
-            {message || t('state.forbidden')}
-          </p>
-        </div>
-        {onAction && (
-          <Button variant="outline" size="sm" onClick={onAction}>
-            {actionText || 'Return to Authorized Dashboard'}
-          </Button>
-        )}
-      </div>
+      <Alert variant="warning" role="status" className={cn('animate-fade-in', className)}>
+        <AlertTitle className="flex items-center gap-1.5 text-warning-text">
+          <Clock className="size-4" aria-hidden="true" />
+          {title || t('state.stale', 'This data may be out of date')}
+        </AlertTitle>
+        <AlertDescription className="flex flex-wrap items-center justify-between gap-2 text-warning-text">
+          <span>
+            {message || t('state.staleMessage', 'Showing the last information received.')}
+            {since ? ` ${t('state.lastUpdated', 'Last updated')}: ${since}.` : ''}
+          </span>
+          {retryButton}
+        </AlertDescription>
+      </Alert>
     );
   }
 
-  if (currentState === 'offline') {
+  if (current === '403') {
     return (
-      <div className="flex flex-col items-center justify-center py-12 px-6 text-center gap-3 bg-amber-50/50 rounded-2xl border border-amber-200 animate-fade-in">
-        <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center shadow-2xs">
-          <WifiOff className="w-6 h-6" />
-        </div>
-        <div className="space-y-1">
-          <h4 className="text-base font-bold text-amber-950">Connection Interrupted</h4>
-          <p className="text-xs text-amber-800/80 max-w-md leading-relaxed">
-            {message || 'Unable to communicate with the health network server. Local offline caching active.'}
-          </p>
-        </div>
-        {onRetry && (
-          <Button variant="secondary" size="sm" onClick={onRetry} className="gap-2">
-            <RefreshCw className="w-3.5 h-3.5" />
-            {t('state.retry')}
-          </Button>
-        )}
-      </div>
+      <Panel
+        className={className}
+        icon={<ShieldAlert />}
+        title={title || t('state.accessRestricted', 'Access Restricted')}
+        body={message || t('state.forbidden', 'You do not have the required permissions.')}
+        actions={actionButton ?? undefined}
+      />
     );
   }
 
-  // Error / Generic
+  if (current === '401') {
+    return (
+      <Panel
+        className={className}
+        icon={<LockKeyhole />}
+        title={title || t('state.sessionExpired', 'Session expired')}
+        body={message || t('state.sessionExpiredMessage', 'Please sign in again to continue.')}
+        actions={actionButton ?? undefined}
+      />
+    );
+  }
+
+  if (current === '404') {
+    return (
+      <Panel
+        className={className}
+        icon={<SearchX />}
+        title={title || t('state.notFound', 'Not found')}
+        body={message || t('state.notFoundMessage', 'This record or page does not exist or was moved.')}
+        actions={actionButton ?? undefined}
+      />
+    );
+  }
+
+  if (current === 'offline') {
+    return (
+      <Panel
+        className={className}
+        icon={<WifiOff />}
+        title={title || t('state.connectionLost', 'Connection Lost')}
+        body={message || t('state.offlineMessage', 'Unable to reach the server. Check your connection.')}
+        actions={retryButton ?? undefined}
+      />
+    );
+  }
+
+  // error
   return (
-    <div className="flex flex-col items-center justify-center py-12 px-6 text-center gap-3 bg-red-50/50 rounded-2xl border border-red-200 animate-fade-in">
-      <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center shadow-2xs">
-        <AlertOctagon className="w-6 h-6" />
-      </div>
-      <div className="space-y-1">
-        <h4 className="text-base font-bold text-red-950">{title || t('state.error')}</h4>
-        <p className="text-xs text-red-800/80 max-w-md leading-relaxed">
-          {message || 'An unexpected problem occurred while processing this health record.'}
-        </p>
-      </div>
-      {onRetry && (
-        <Button variant="primary" size="sm" onClick={onRetry} className="gap-2 mt-1">
-          <RefreshCw className="w-3.5 h-3.5" />
-          {t('state.retry')}
-        </Button>
-      )}
-    </div>
+    <Panel
+      tone="danger"
+      className={className}
+      icon={<AlertOctagon />}
+      title={title || t('state.error', 'Unable to complete request.')}
+      body={message || t('state.errorMessage', 'Something went wrong while loading this. Your data is unchanged. Try again.')}
+      actions={
+        <>
+          {retryButton}
+          {actionButton}
+        </>
+      }
+    />
   );
 };

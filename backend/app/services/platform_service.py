@@ -37,7 +37,8 @@ NAV_CATALOGUE: List[Dict] = [
 
     # Role 02: Doctor (Clinical)
     {"section": "clinical", "key": "clinical.queue", "path": "/clinical/queue", "icon": "users", "permission": P.CONSULTATIONS_CONDUCT},
-    {"section": "clinical", "key": "clinical.patients", "path": "/clinical/patients", "icon": "user", "permission": P.PATIENTS_PROFILE_READ},
+    {"section": "clinical", "key": "clinical.patients", "path": "/clinical/patients", "icon": "user",
+     "permission": (P.CONSULTATIONS_CONDUCT, P.PATIENTS_VITALS_RECORD, P.PATIENTS_PROFILE_CREATE, P.LABS_SAMPLE_COLLECT)},
     {"section": "clinical", "key": "clinical.labs", "path": "/clinical/labs", "icon": "flask", "permission": P.LABS_ORDER_READ},
     {"section": "clinical", "key": "clinical.inventory", "path": "/clinical/inventory", "icon": "box", "permission": P.INVENTORY_ITEM_READ},
 
@@ -131,7 +132,11 @@ def navigation_for(permissions: Set[str]) -> List[Dict]:
     seen_paths = set()
     items = []
     for item in NAV_CATALOGUE:
-        if item["permission"] in permissions:
+        required = item["permission"]
+        # A tuple means "any of these": used where a shared permission (e.g. patients.profile.read, which patients also
+        # hold for their own record) must not be enough to reveal a staff-only screen.
+        allowed = any(p in permissions for p in required) if isinstance(required, tuple) else required in permissions
+        if allowed:
             if item["path"] not in seen_paths:
                 seen_paths.add(item["path"])
                 items.append({k: v for k, v in item.items() if k != "permission"})

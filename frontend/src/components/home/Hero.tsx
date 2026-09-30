@@ -1,113 +1,121 @@
 import React from 'react';
-import { Sparkles, ArrowRight, HeartPulse, Boxes, Truck, LineChart } from 'lucide-react';
+import { ArrowRight, Languages, LogIn } from 'lucide-react';
 import { Container } from '../common/Container';
+import { useLanguage } from '../../context/LanguageContext';
+import { formatRoleName } from '../../utils/formatters';
 
 interface HeroProps {
   onOpenLogin: () => void;
 }
 
-const PILLS = [
+/* Real role tiers: every code exists in DEMO_ACCOUNTS / the backend role catalogue. */
+const TIERS: { key: string; roles: string[] }[] = [
   {
-    icon: <HeartPulse className="w-5 h-5" />,
-    bg: '#f0f7fe',
-    color: '#5aa9e6',
-    title: 'Clinical OPD',
-    sub: 'Triage to Consultation',
+    key: 'facility',
+    roles: ['PATIENT', 'DOCTOR', 'NURSE', 'PHC_IN_CHARGE', 'PHARMACIST'],
   },
   {
-    icon: <Boxes className="w-5 h-5" />,
-    bg: '#f0f9ff',
-    color: '#3b8ec8',
-    title: 'Stock Visibility',
-    sub: 'Real-time Buffer Status',
+    key: 'district',
+    roles: ['DISTRICT_HEALTH_OFFICER', 'DISTRICT_SUPPLY_OFFICER', 'DISTRICT_EMERGENCY_COORDINATOR'],
   },
   {
-    icon: <Truck className="w-5 h-5" />,
-    bg: '#fffde6',
-    color: '#b89800',
-    title: 'Supply Pipeline',
-    sub: 'Fulfillment & Reorders',
-  },
-  {
-    icon: <LineChart className="w-5 h-5" />,
-    bg: '#fff0f5',
-    color: '#ff6392',
-    title: 'Public Health',
-    sub: 'Epidemic Trend Analysis',
+    key: 'state',
+    roles: [
+      'STATE_HEALTH_ADMIN',
+      'STATE_SUPPLY_MANAGER',
+      'STATE_PUBLIC_HEALTH_ANALYST',
+      'NATIONAL_HEALTH_AUTHORITY',
+      'SUPER_ADMIN',
+    ],
   },
 ];
 
-export const Hero: React.FC<HeroProps> = ({ onOpenLogin }) => (
-  <section className="relative pt-28 pb-16 sm:pt-32 sm:pb-24 border-b border-slate-200"
-    style={{ background: 'linear-gradient(180deg, #f0f7fe 0%, #ffffff 60%, #f9f9f9 100%)' }}
-  >
-    <Container className="flex flex-col items-center text-center gap-6">
+const focusRing =
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background';
 
-      {/* Kicker chip */}
-      <div
-        className="inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider shadow-xs"
-        style={{ backgroundColor: '#f0f7fe', color: '#257bb5', border: '1px solid #7fc8f8' }}
-      >
-        <Sparkles className="w-3.5 h-3.5 shrink-0" />
-        Med2Us • Smart Health &amp; Supply Chain Resilience
-      </div>
+export const Hero: React.FC<HeroProps> = ({ onOpenLogin }) => {
+  const { t } = useLanguage();
 
-      {/* H1 */}
-      <h1
-        className="font-extrabold tracking-tight text-slate-900 text-balance max-w-4xl w-full"
-        style={{ fontSize: 'clamp(2rem, 5vw + 0.5rem, 3.75rem)', lineHeight: 1.1 }}
-      >
-        Connected Healthcare Operations with{' '}
-        <span style={{ backgroundImage: 'linear-gradient(90deg, #5aa9e6, #7fc8f8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-          Resilient Supply Chains
-        </span>
-      </h1>
-
-      {/* Lead paragraph */}
-      <p className="max-w-2xl text-base md:text-lg leading-relaxed text-slate-600 text-pretty w-full">
-        An integrated healthcare platform empowering primary health centers, clinical staff, district coordinators, and state authorities with real-time inventory visibility and decision support.
-      </p>
-
-      {/* CTAs */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-4 w-full max-w-sm sm:max-w-none">
-        <a
-          href="#roles"
-          className="inline-flex items-center justify-center gap-2 h-12 px-7 rounded-xl text-sm font-bold text-white shadow-md hover:opacity-90 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2"
-          style={{ backgroundColor: '#5aa9e6' }}
-        >
-          Explore 13 Role Portals
-          <ArrowRight className="w-4 h-4 shrink-0" />
-        </a>
-        <button
-          onClick={onOpenLogin}
-          className="inline-flex items-center justify-center gap-2 h-12 px-7 rounded-xl text-sm font-bold text-slate-800 border border-slate-300 hover:bg-slate-50 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
-          style={{ backgroundColor: '#ffffff' }}
-        >
-          Direct Sign In
-        </button>
-      </div>
-
-      {/* Quick-stat pills */}
-      <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-8">
-        {PILLS.map((p) => (
-          <div
-            key={p.title}
-            className="flex items-center gap-4 p-4 rounded-2xl border border-slate-200 bg-white shadow-sm text-left"
+  return (
+    <section id="top" aria-labelledby="hero-title" className="border-b border-border bg-background">
+      <Container className="grid items-start gap-10 py-10 sm:py-14 lg:grid-cols-12 lg:gap-12 lg:py-20">
+        {/* Left: what it is, who it is for, primary action */}
+        <div className="lg:col-span-7">
+          <p className="text-small font-semibold uppercase tracking-wide text-primary-text">
+            {t('landing.hero.kicker')}
+          </p>
+          <h1
+            id="hero-title"
+            className="mt-3 text-balance text-3xl font-semibold leading-tight tracking-tight text-foreground sm:text-4xl lg:text-5xl"
           >
-            {/* 40 px icon box */}
-            <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-              style={{ backgroundColor: p.bg, color: p.color }}
+            {t('landing.hero.title')}
+          </h1>
+          <p className="mt-5 max-w-2xl text-pretty text-base leading-relaxed text-muted-foreground sm:text-lg">
+            {t('landing.hero.lead')}
+          </p>
+
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <button
+              type="button"
+              onClick={onOpenLogin}
+              className={`inline-flex h-12 items-center justify-center gap-2 rounded-md bg-primary px-6 text-sm font-semibold text-primary-foreground hover:bg-primary-hover ${focusRing}`}
             >
-              {p.icon}
-            </div>
-            <div className="min-w-0">
-              <div className="text-sm font-bold text-slate-900 truncate">{p.title}</div>
-              <div className="text-xs text-slate-500 truncate mt-0.5">{p.sub}</div>
-            </div>
+              <LogIn className="h-4 w-4" aria-hidden="true" />
+              {t('form.signIn')}
+            </button>
+            <a
+              href="#roles"
+              className={`inline-flex h-12 items-center justify-center gap-2 rounded-md border border-input bg-card px-6 text-sm font-semibold text-foreground hover:bg-accent ${focusRing}`}
+            >
+              {t('landing.hero.chooseRole')}
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </a>
           </div>
-        ))}
-      </div>
-    </Container>
-  </section>
-);
+
+          <p className="mt-6 flex items-start gap-2 text-small text-muted-foreground">
+            <Languages className="mt-0.5 h-4 w-4 shrink-0 text-primary-text" aria-hidden="true" />
+            <span>{t('landing.hero.languages')}</span>
+          </p>
+        </div>
+
+        {/* Right: structured overview of who uses the platform */}
+        <aside
+          aria-labelledby="overview-title"
+          className="rounded-lg border border-border bg-card lg:col-span-5"
+        >
+          <div className="border-b border-border px-5 py-4">
+            <h2 id="overview-title" className="text-section-title font-semibold text-foreground">
+              {t('landing.overview.title')}
+            </h2>
+            <p className="mt-1 text-small text-muted-foreground">{t('landing.overview.lead')}</p>
+          </div>
+          <ol className="divide-y divide-border">
+            {TIERS.map((tier, i) => (
+              <li key={tier.key} className="flex gap-4 px-5 py-4">
+                <span
+                  aria-hidden="true"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-primary-soft font-mono text-small font-semibold text-primary-text"
+                >
+                  {i + 1}
+                </span>
+                <div className="min-w-0">
+                  <h3 className="text-body font-semibold text-foreground">
+                    {t(`landing.tier.${tier.key}`)}
+                  </h3>
+                  <p className="text-small text-muted-foreground">{t(`landing.tier.${tier.key}.desc`)}</p>
+                  <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-small text-foreground">
+                    {tier.roles.map((code) => (
+                      <li key={code} className="after:ml-3 after:text-border after:content-['|'] last:after:content-none">
+                        {formatRoleName(code, t)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </aside>
+      </Container>
+    </section>
+  );
+};
