@@ -1,6 +1,6 @@
 import type { ApiError } from './types';
-
-export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+const rawApiUrl = (import.meta.env.VITE_API_URL as string || 'http://localhost:8000/api/v1').trim();
+export const API_BASE = rawApiUrl.replace(/([^:])\/+/g, '$1/').replace(/\/+$/, '');
 
 export const getAccessToken = (): string | null => localStorage.getItem('access_token');
 export const getRefreshToken = (): string | null => localStorage.getItem('refresh_token');

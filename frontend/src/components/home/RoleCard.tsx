@@ -16,11 +16,12 @@ interface Props {
   category:   'clinical' | 'supply' | 'admin';
   icon:       React.ReactNode;
   isDisabled?: boolean;
+  isLoading?:  boolean;
   onSelect:   (code: string) => void;
 }
 
 export const RoleCard: React.FC<Props> = ({
-  code, index, account, category, icon, isDisabled = false, onSelect,
+  code, index, account, category, icon, isDisabled = false, isLoading = false, onSelect,
 }) => {
   const accent = ACCENTS[category];
 
@@ -77,9 +78,13 @@ export const RoleCard: React.FC<Props> = ({
       {/* "Sign in as →" pinned bottom */}
       <div className="mt-auto pt-4 flex items-center justify-between border-t min-w-0" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
         <span className="text-xs font-semibold" style={{ color: accent.label }}>
-          Sign in as →
+          {isLoading ? 'Authenticating...' : 'Sign in as →'}
         </span>
-        <ArrowRight className="w-3.5 h-3.5 shrink-0 opacity-60 group-hover:opacity-100 transition" style={{ color: accent.label }} />
+        {isLoading ? (
+          <div className="w-3.5 h-3.5 border-2 border-sky-400 border-t-transparent rounded-full animate-spin shrink-0" />
+        ) : (
+          <ArrowRight className="w-3.5 h-3.5 shrink-0 opacity-60 group-hover:opacity-100 transition" style={{ color: accent.label }} />
+        )}
       </div>
     </button>
   );

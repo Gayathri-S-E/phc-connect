@@ -17,6 +17,9 @@ import { Footer } from './Footer';
 interface Props {
   onOpenLogin: () => void;
   onSelectRole: (roleCode: string) => void;
+  loadingRoleCode?: string | null;
+  loginError?: string | null;
+  onClearError?: () => void;
 }
 
 /* Typed data arrays — single source of truth */
@@ -77,7 +80,13 @@ const PILLARS = [
 /* Section vertical rhythm */
 const SECTION_PY = 'py-16 md:py-20 lg:py-24';
 
-export const LandingPage: React.FC<Props> = ({ onOpenLogin, onSelectRole }) => {
+export const LandingPage: React.FC<Props> = ({
+  onOpenLogin,
+  onSelectRole,
+  loadingRoleCode = null,
+  loginError = null,
+  onClearError,
+}) => {
   const { isLoading } = useAuth();
   const [cat, setCat] = useState<RoleCategory>('all');
 
@@ -101,6 +110,24 @@ export const LandingPage: React.FC<Props> = ({ onOpenLogin, onSelectRole }) => {
       <Navbar onOpenLogin={onOpenLogin} />
 
       <main className="flex-1">
+
+        {/* Global Error Banner if demo authentication fails */}
+        {loginError && (
+          <div className="bg-red-600/90 text-white px-4 py-3 flex items-center justify-between text-sm shadow-md sticky top-[72px] z-40 backdrop-blur-sm">
+            <div className="flex items-center gap-2 max-w-5xl mx-auto w-full">
+              <span className="font-bold">⚠️ Connection Notice:</span>
+              <span className="truncate">{loginError}</span>
+              {onClearError && (
+                <button
+                  onClick={onClearError}
+                  className="ml-auto underline hover:text-red-100 font-semibold text-xs"
+                >
+                  Dismiss
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* ── 2. Hero ── */}
         <Hero onOpenLogin={onOpenLogin} />
@@ -175,7 +202,8 @@ export const LandingPage: React.FC<Props> = ({ onOpenLogin, onSelectRole }) => {
                   account={account}
                   category={ROLE_CATEGORIES[code] ?? 'admin'}
                   icon={ROLE_ICONS[code] ?? <Users className="w-4 h-4" />}
-                  isDisabled={isLoading}
+                  isDisabled={isLoading || !!loadingRoleCode}
+                  isLoading={loadingRoleCode === code}
                   onSelect={onSelectRole}
                 />
               ))}

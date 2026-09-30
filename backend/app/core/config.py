@@ -42,8 +42,11 @@ class Settings(BaseSettings):
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5173",
         "http://127.0.0.1:5174",
+        "https://phc-connect-1.onrender.com",
+        "https://phc-connect.onrender.com",
     ]
-    ALLOWED_HOSTS: List[str] = ["localhost", "127.0.0.1"]
+    ALLOWED_ORIGIN_REGEX: str = r"https://.*\.onrender\.com"
+    ALLOWED_HOSTS: List[str] = ["localhost", "127.0.0.1", "*.onrender.com", "phc-connect.onrender.com", "phc-connect-1.onrender.com"]
 
     # Automatic monitoring (supply monitor + public-health analysis). Off by default so
     # tests and one-off scripts never start background work.

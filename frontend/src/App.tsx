@@ -39,6 +39,7 @@ const UnauthenticatedApp: React.FC = () => {
   const [email, setEmail] = useState('patient@demo.smarthealth.com');
   const [password, setPassword] = useState('Demo@Health2026');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loadingRoleCode, setLoadingRoleCode] = useState<string | null>(null);
   const [loginError, setLoginError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -54,13 +55,18 @@ const UnauthenticatedApp: React.FC = () => {
 
   const handleQuickRole = async (roleCode: string) => {
     setIsSubmitting(true);
+    setLoadingRoleCode(roleCode);
     setLoginError(null);
-    const result = await switchDemoRole(roleCode);
-    setIsSubmitting(false);
-    if (result.success && result.path && result.path !== '/login') {
-      navigate(result.path);
-    } else if (!result.success) {
-      setLoginError(result.error || 'Failed to authenticate demo account.');
+    try {
+      const result = await switchDemoRole(roleCode);
+      if (result.success && result.path && result.path !== '/login') {
+        navigate(result.path);
+      } else if (!result.success) {
+        setLoginError(result.error || 'Failed to authenticate demo account.');
+      }
+    } finally {
+      setIsSubmitting(false);
+      setLoadingRoleCode(null);
     }
   };
 
@@ -85,6 +91,9 @@ const UnauthenticatedApp: React.FC = () => {
       <LandingPage
         onOpenLogin={() => setShowLoginModal(true)}
         onSelectRole={(roleCode) => handleQuickRole(roleCode)}
+        loadingRoleCode={loadingRoleCode}
+        loginError={loginError}
+        onClearError={() => setLoginError(null)}
       />
 
       {/* Login Modal Overlay */}
