@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   ShieldAlert, ShieldCheck, Users, Key, 
   Activity, Server, Database, Lock, 
@@ -16,8 +17,36 @@ import { DataTable } from '../components/common/DataTable';
 export default function PlatformAdminPortal() {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const location = useLocation();
+  const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState<'health' | 'security' | 'users' | 'roles' | 'audit'>('health');
+  const getTabFromPath = (pathname: string): 'health' | 'security' | 'users' | 'roles' | 'audit' => {
+    if (pathname.includes('/platform/security')) return 'security';
+    if (pathname.includes('/platform/users')) return 'users';
+    if (pathname.includes('/platform/roles')) return 'roles';
+    if (pathname.includes('/platform/audit')) return 'audit';
+    return 'health';
+  };
+
+  const [activeTab, setActiveTab] = useState<'health' | 'security' | 'users' | 'roles' | 'audit'>(getTabFromPath(location.pathname));
+
+  useEffect(() => {
+    const tab = getTabFromPath(location.pathname);
+    setActiveTab(tab);
+  }, [location.pathname]);
+
+  const handleTabChange = (tab: 'health' | 'security' | 'users' | 'roles' | 'audit') => {
+    setActiveTab(tab);
+    const pathMap: Record<'health' | 'security' | 'users' | 'roles' | 'audit', string> = {
+      health: '/platform',
+      security: '/platform/security',
+      users: '/platform/users',
+      roles: '/platform/roles',
+      audit: '/platform/audit',
+    };
+    navigate(pathMap[tab]);
+  };
+
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -170,7 +199,7 @@ export default function PlatformAdminPortal() {
       {/* Navigation Tabs */}
       <div className="flex border-b border-gray-200 bg-white px-4 rounded-lg shadow-sm overflow-x-auto">
         <button
-          onClick={() => setActiveTab('health')}
+          onClick={() => handleTabChange('health')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'health'
               ? 'border-gray-900 text-gray-900 font-semibold'
@@ -181,7 +210,7 @@ export default function PlatformAdminPortal() {
           Platform Health & Telemetry
         </button>
         <button
-          onClick={() => setActiveTab('security')}
+          onClick={() => handleTabChange('security')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'security'
               ? 'border-gray-900 text-gray-900 font-semibold'
@@ -197,7 +226,7 @@ export default function PlatformAdminPortal() {
           )}
         </button>
         <button
-          onClick={() => setActiveTab('users')}
+          onClick={() => handleTabChange('users')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'users'
               ? 'border-gray-900 text-gray-900 font-semibold'
@@ -208,7 +237,7 @@ export default function PlatformAdminPortal() {
           User Provisioning & Accounts
         </button>
         <button
-          onClick={() => setActiveTab('roles')}
+          onClick={() => handleTabChange('roles')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'roles'
               ? 'border-gray-900 text-gray-900 font-semibold'
@@ -219,7 +248,7 @@ export default function PlatformAdminPortal() {
           Canonical 13-Role Catalog
         </button>
         <button
-          onClick={() => setActiveTab('audit')}
+          onClick={() => handleTabChange('audit')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'audit'
               ? 'border-gray-900 text-gray-900 font-semibold'

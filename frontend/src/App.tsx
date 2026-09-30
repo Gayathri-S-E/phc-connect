@@ -194,46 +194,78 @@ const AuthenticatedApp: React.FC = () => {
     <Layout>
       <Routes>
         {/* Role 01: Patient Portal */}
+        <Route path="/patient" element={<PatientPortal />} />
         <Route path="/patient/*" element={<PatientPortal />} />
 
-        {/* Role 02: Doctor Portal */}
+        {/* Role 02 & 03: Clinical Portals (Doctor & Nurse) */}
         <Route path="/clinical/queue" element={<DoctorPortal />} />
         <Route path="/clinical/patients" element={<DoctorPortal />} />
         <Route path="/clinical/labs" element={<DoctorPortal />} />
-
-        {/* Role 03: Nurse Portal */}
+        <Route path="/clinical/inventory" element={<DoctorPortal />} />
         <Route path="/clinical/triage" element={<NursePortal />} />
+        <Route path="/clinical/registration" element={<NursePortal />} />
+        <Route path="/clinical/coldchain" element={<NursePortal />} />
+        <Route path="/clinical/immunization" element={<NursePortal />} />
         <Route path="/clinical/*" element={activeRole === 'NURSE' ? <NursePortal /> : <DoctorPortal />} />
 
         {/* Role 04: PHC In-Charge Facility Admin Portal */}
+        <Route path="/facility" element={<FacilityAdminPortal />} />
         <Route path="/facility/*" element={<FacilityAdminPortal />} />
 
         {/* Role 05: Pharmacist Dispensary Portal */}
+        <Route path="/pharmacy/dispense" element={<PharmacistPortal />} />
         <Route path="/pharmacy/inventory" element={activeRole === 'DOCTOR' ? <DoctorPortal /> : <PharmacistPortal />} />
+        <Route path="/pharmacy/alerts" element={<PharmacistPortal />} />
+        <Route path="/pharmacy/receipts" element={<PharmacistPortal />} />
+        <Route path="/pharmacy/druginfo" element={<PharmacistPortal />} />
         <Route path="/pharmacy/*" element={<PharmacistPortal />} />
 
         {/* Role 06: District Health Officer Portal */}
+        <Route path="/district" element={<DistrictHealthPortal />} />
         <Route path="/district/*" element={<DistrictHealthPortal />} />
 
-        {/* Role 07 & 10: Supply Chain Portals */}
+        {/* Role 07 & 10: Supply Chain Portals (District & State) */}
         <Route path="/supply/requests" element={<DistrictSupplyPortal />} />
+        <Route path="/supply/transfers" element={<DistrictSupplyPortal />} />
+        <Route path="/supply/warehouse" element={activeRole === 'STATE_SUPPLY_MANAGER' ? <StateSupplyPortal /> : <DistrictSupplyPortal />} />
         <Route path="/supply/impacts" element={<DistrictSupplyPortal />} />
+        <Route path="/supply/escalated" element={<StateSupplyPortal />} />
+        <Route path="/supply/monitoring" element={<StateSupplyPortal />} />
+        <Route path="/supply/shortages" element={<StateSupplyPortal />} />
         <Route path="/supply/*" element={activeRole === 'STATE_SUPPLY_MANAGER' ? <StateSupplyPortal /> : <DistrictSupplyPortal />} />
 
         {/* Role 08: District Emergency Coordinator Portal */}
+        <Route path="/emergency" element={<DistrictEmergencyPortal />} />
         <Route path="/emergency/*" element={<DistrictEmergencyPortal />} />
 
         {/* Role 09: State Health Administrator Portal */}
+        <Route path="/state" element={<StateHealthPortal />} />
         <Route path="/state/*" element={<StateHealthPortal />} />
-        <Route path="/governance/*" element={<StateHealthPortal />} />
+
+        {/* Cross-Role Governance Routes (District, National, State) */}
+        <Route
+          path="/governance/*"
+          element={
+            activeRole === 'DISTRICT_HEALTH_OFFICER' ? (
+              <DistrictHealthPortal />
+            ) : activeRole === 'NATIONAL_HEALTH_AUTHORITY' ? (
+              <NationalHealthPortal />
+            ) : (
+              <StateHealthPortal />
+            )
+          }
+        />
 
         {/* Role 11: State Public Health Analyst Portal */}
+        <Route path="/analytics" element={<PublicHealthAnalystPortal />} />
         <Route path="/analytics/*" element={<PublicHealthAnalystPortal />} />
 
         {/* Role 12: National Health Authority Portal */}
+        <Route path="/national" element={<NationalHealthPortal />} />
         <Route path="/national/*" element={<NationalHealthPortal />} />
 
         {/* Role 13: Super / Platform Administrator Portal */}
+        <Route path="/platform" element={<PlatformAdminPortal />} />
         <Route path="/platform/*" element={<PlatformAdminPortal />} />
 
         {/* Default route redirects to active role's home view */}

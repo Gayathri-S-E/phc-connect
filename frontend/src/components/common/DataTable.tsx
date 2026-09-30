@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { StateView } from './StateView';
+import { useLanguage } from '../../context/LanguageContext';
 
 export interface Column<T> {
   key?: string;
@@ -30,13 +31,14 @@ export function DataTable<T>({
   keyExtractor,
   keyField,
   searchable = true,
-  searchPlaceholder = 'Search records...',
+  searchPlaceholder,
   searchFilter,
   isLoading = false,
   emptyTitle,
   emptyMessage,
   pageSize = 10,
 }: DataTableProps<T>) {
+  const { t } = useLanguage();
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -80,7 +82,7 @@ export function DataTable<T>({
                 setSearch(e.target.value);
                 setCurrentPage(1);
               }}
-              placeholder={searchPlaceholder}
+              placeholder={searchPlaceholder || t('table.search')}
               style={{
                 width: '100%',
                 padding: '0.55rem 0.85rem 0.55rem 2.25rem',
@@ -92,7 +94,7 @@ export function DataTable<T>({
             />
           </div>
           <span style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
-            Total: <strong>{filteredData.length}</strong>
+            {t('table.total')}: <strong>{filteredData.length}</strong>
           </span>
         </div>
       )}
@@ -143,8 +145,8 @@ export function DataTable<T>({
                 <td colSpan={columns.length} style={{ padding: '2rem 1rem' }}>
                   <StateView
                     state="empty"
-                    title={emptyTitle || 'No items to display'}
-                    message={emptyMessage || (search ? 'No results matched your search.' : 'No data records found.')}
+                    title={emptyTitle || t('table.emptyTitle')}
+                    message={emptyMessage || (search ? t('table.noResults') : t('table.emptyMessage'))}
                   />
                 </td>
               </tr>
@@ -215,17 +217,19 @@ export function DataTable<T>({
             className="btn-secondary"
             disabled={currentPage === 1}
             onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+            aria-label={t('action.previous')}
             style={{ padding: '0.35rem 0.65rem' }}
           >
             <ChevronLeft size={16} />
           </button>
           <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            Page {currentPage} of {totalPages}
+            {t('table.pageOf', { page: currentPage, total: totalPages })}
           </span>
           <button
             className="btn-secondary"
             disabled={currentPage === totalPages}
             onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+            aria-label={t('action.next')}
             style={{ padding: '0.35rem 0.65rem' }}
           >
             <ChevronRight size={16} />

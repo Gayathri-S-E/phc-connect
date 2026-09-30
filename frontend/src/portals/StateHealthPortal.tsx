@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   Building2, Users, ShieldCheck, CheckCircle, 
   FileText, Activity, BarChart3, TrendingUp, 
@@ -16,8 +17,32 @@ import { DataTable } from '../components/common/DataTable';
 export default function StateHealthPortal() {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const location = useLocation();
+  const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState<'cockpit' | 'districts' | 'approvals' | 'schemes' | 'reports' | 'insights'>('cockpit');
+  const getTabFromPath = (path: string): 'cockpit' | 'districts' | 'approvals' | 'schemes' | 'reports' | 'insights' => {
+    if (path.includes('/districts')) return 'districts';
+    if (path.includes('/approvals')) return 'approvals';
+    if (path.includes('/schemes')) return 'schemes';
+    if (path.includes('/reports')) return 'reports';
+    if (path.includes('/insights')) return 'insights';
+    return 'cockpit';
+  };
+
+  const [activeTab, setActiveTab] = useState<'cockpit' | 'districts' | 'approvals' | 'schemes' | 'reports' | 'insights'>(
+    getTabFromPath(location.pathname)
+  );
+
+  useEffect(() => {
+    setActiveTab(getTabFromPath(location.pathname));
+  }, [location.pathname]);
+
+  const handleTabChange = (tab: 'cockpit' | 'districts' | 'approvals' | 'schemes' | 'reports' | 'insights') => {
+    setActiveTab(tab);
+    if (tab === 'cockpit') navigate('/state');
+    else if (tab === 'districts') navigate('/state/districts');
+    else navigate(`/governance/${tab}`);
+  };
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -211,7 +236,7 @@ export default function StateHealthPortal() {
       {/* Navigation Tabs */}
       <div className="flex border-b border-gray-200 bg-white px-4 rounded-lg shadow-sm overflow-x-auto">
         <button
-          onClick={() => setActiveTab('cockpit')}
+          onClick={() => handleTabChange('cockpit')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'cockpit'
               ? 'border-indigo-600 text-indigo-700 font-semibold'
@@ -222,7 +247,7 @@ export default function StateHealthPortal() {
           State Health Cockpit
         </button>
         <button
-          onClick={() => setActiveTab('districts')}
+          onClick={() => handleTabChange('districts')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'districts'
               ? 'border-indigo-600 text-indigo-700 font-semibold'
@@ -233,7 +258,7 @@ export default function StateHealthPortal() {
           Districts Comparative Matrix
         </button>
         <button
-          onClick={() => setActiveTab('approvals')}
+          onClick={() => handleTabChange('approvals')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'approvals'
               ? 'border-indigo-600 text-indigo-700 font-semibold'
@@ -249,7 +274,7 @@ export default function StateHealthPortal() {
           )}
         </button>
         <button
-          onClick={() => setActiveTab('schemes')}
+          onClick={() => handleTabChange('schemes')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'schemes'
               ? 'border-indigo-600 text-indigo-700 font-semibold'
@@ -260,7 +285,7 @@ export default function StateHealthPortal() {
           State Health Schemes
         </button>
         <button
-          onClick={() => setActiveTab('reports')}
+          onClick={() => handleTabChange('reports')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'reports'
               ? 'border-indigo-600 text-indigo-700 font-semibold'
@@ -271,7 +296,7 @@ export default function StateHealthPortal() {
           Governance Reports
         </button>
         <button
-          onClick={() => setActiveTab('insights')}
+          onClick={() => handleTabChange('insights')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'insights'
               ? 'border-indigo-600 text-indigo-700 font-semibold'

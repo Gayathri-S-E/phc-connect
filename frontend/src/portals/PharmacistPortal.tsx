@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   Pill, AlertTriangle, CheckCircle, Clock, 
   Send, Search, ShieldCheck, ChevronRight, 
@@ -16,8 +17,30 @@ import { DataTable } from '../components/common/DataTable';
 export default function PharmacistPortal() {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const location = useLocation();
+  const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState<'dispense' | 'alerts' | 'inventory' | 'transfers' | 'druginfo'>('dispense');
+  const getTabFromPath = (path: string): 'dispense' | 'alerts' | 'inventory' | 'transfers' | 'druginfo' => {
+    if (path.includes('/alerts')) return 'alerts';
+    if (path.includes('/inventory')) return 'inventory';
+    if (path.includes('/transfers') || path.includes('/receipts')) return 'transfers';
+    if (path.includes('/druginfo')) return 'druginfo';
+    return 'dispense';
+  };
+
+  const [activeTab, setActiveTab] = useState<'dispense' | 'alerts' | 'inventory' | 'transfers' | 'druginfo'>(
+    getTabFromPath(location.pathname)
+  );
+
+  useEffect(() => {
+    setActiveTab(getTabFromPath(location.pathname));
+  }, [location.pathname]);
+
+  const handleTabChange = (tab: 'dispense' | 'alerts' | 'inventory' | 'transfers' | 'druginfo') => {
+    setActiveTab(tab);
+    if (tab === 'transfers') navigate('/pharmacy/receipts');
+    else navigate(`/pharmacy/${tab}`);
+  };
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -272,7 +295,7 @@ export default function PharmacistPortal() {
       {/* Tabs */}
       <div className="flex border-b border-gray-200 bg-white px-4 rounded-lg shadow-sm overflow-x-auto">
         <button
-          onClick={() => setActiveTab('dispense')}
+          onClick={() => handleTabChange('dispense')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'dispense'
               ? 'border-blue-600 text-blue-700 font-semibold'
@@ -288,7 +311,7 @@ export default function PharmacistPortal() {
           )}
         </button>
         <button
-          onClick={() => setActiveTab('alerts')}
+          onClick={() => handleTabChange('alerts')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'alerts'
               ? 'border-blue-600 text-blue-700 font-semibold'
@@ -304,7 +327,7 @@ export default function PharmacistPortal() {
           )}
         </button>
         <button
-          onClick={() => setActiveTab('inventory')}
+          onClick={() => handleTabChange('inventory')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'inventory'
               ? 'border-blue-600 text-blue-700 font-semibold'
@@ -315,7 +338,7 @@ export default function PharmacistPortal() {
           Stock-On-Hand Registry
         </button>
         <button
-          onClick={() => setActiveTab('transfers')}
+          onClick={() => handleTabChange('transfers')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'transfers'
               ? 'border-blue-600 text-blue-700 font-semibold'
@@ -326,7 +349,7 @@ export default function PharmacistPortal() {
           Inbound Transfers & Receipts
         </button>
         <button
-          onClick={() => setActiveTab('druginfo')}
+          onClick={() => handleTabChange('druginfo')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'druginfo'
               ? 'border-blue-600 text-blue-700 font-semibold'

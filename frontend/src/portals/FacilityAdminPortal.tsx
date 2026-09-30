@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   Building2, Users, Thermometer, MapPin, 
   AlertCircle, CheckCircle, Clock, Plus, 
@@ -16,8 +17,30 @@ import { DataTable } from '../components/common/DataTable';
 export default function FacilityAdminPortal() {
   const { user } = useAuth();
   const { t } = useLanguage();
-  
-  const [activeTab, setActiveTab] = useState<'overview' | 'attendance' | 'coldchain' | 'camps' | 'grievances'>('overview');
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const getTabFromPath = (path: string): 'overview' | 'attendance' | 'coldchain' | 'camps' | 'grievances' => {
+    if (path.includes('/attendance')) return 'attendance';
+    if (path.includes('/coldchain')) return 'coldchain';
+    if (path.includes('/camps')) return 'camps';
+    if (path.includes('/grievances')) return 'grievances';
+    return 'overview';
+  };
+
+  const [activeTab, setActiveTab] = useState<'overview' | 'attendance' | 'coldchain' | 'camps' | 'grievances'>(
+    getTabFromPath(location.pathname)
+  );
+
+  useEffect(() => {
+    setActiveTab(getTabFromPath(location.pathname));
+  }, [location.pathname]);
+
+  const handleTabChange = (tab: 'overview' | 'attendance' | 'coldchain' | 'camps' | 'grievances') => {
+    setActiveTab(tab);
+    if (tab === 'overview') navigate('/facility');
+    else navigate(`/facility/${tab}`);
+  };
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -274,7 +297,7 @@ export default function FacilityAdminPortal() {
       {/* Navigation Tabs */}
       <div className="flex border-b border-gray-200 bg-white px-4 rounded-lg shadow-sm overflow-x-auto">
         <button
-          onClick={() => setActiveTab('overview')}
+          onClick={() => handleTabChange('overview')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'overview'
               ? 'border-emerald-600 text-emerald-700 font-semibold'
@@ -285,7 +308,7 @@ export default function FacilityAdminPortal() {
           HMIS Performance Overview
         </button>
         <button
-          onClick={() => setActiveTab('attendance')}
+          onClick={() => handleTabChange('attendance')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'attendance'
               ? 'border-emerald-600 text-emerald-700 font-semibold'
@@ -296,7 +319,7 @@ export default function FacilityAdminPortal() {
           Staff Attendance
         </button>
         <button
-          onClick={() => setActiveTab('coldchain')}
+          onClick={() => handleTabChange('coldchain')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'coldchain'
               ? 'border-emerald-600 text-emerald-700 font-semibold'
@@ -310,7 +333,7 @@ export default function FacilityAdminPortal() {
           )}
         </button>
         <button
-          onClick={() => setActiveTab('camps')}
+          onClick={() => handleTabChange('camps')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'camps'
               ? 'border-emerald-600 text-emerald-700 font-semibold'
@@ -321,7 +344,7 @@ export default function FacilityAdminPortal() {
           Village Outreach Camps
         </button>
         <button
-          onClick={() => setActiveTab('grievances')}
+          onClick={() => handleTabChange('grievances')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'grievances'
               ? 'border-emerald-600 text-emerald-700 font-semibold'

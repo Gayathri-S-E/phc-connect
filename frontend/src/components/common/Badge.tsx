@@ -3,6 +3,7 @@ import {
   CheckCircle, AlertTriangle, AlertCircle, Clock, 
   Truck, Check, XCircle, Info 
 } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 
 interface BadgeProps {
   status: string;
@@ -11,8 +12,14 @@ interface BadgeProps {
 }
 
 export const Badge: React.FC<BadgeProps> = ({ status, label, size = 'md' }) => {
+  const { t } = useLanguage();
   const s = (status || '').toUpperCase();
-  const displayLabel = label || status.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+  const fallbackLabel = label || status.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+  
+  // Look up translated status
+  const statusKey = `status.${s.toLowerCase()}`;
+  const translatedStatus = t(statusKey);
+  const displayLabel = label || (translatedStatus !== statusKey ? translatedStatus : fallbackLabel);
 
   let bg = 'rgba(100, 116, 139, 0.15)';
   let color = '#475569';
@@ -30,7 +37,7 @@ export const Badge: React.FC<BadgeProps> = ({ status, label, size = 'md' }) => {
     bg = 'rgba(139, 92, 246, 0.15)';
     color = '#7c3aed';
     icon = <Truck size={size === 'sm' ? 12 : 14} />;
-  } else if (['URGENT', 'HIGH', 'MAJOR', 'NEEDS_ATTENTION', 'LOW_STOCK', 'LATE'].includes(s)) {
+  } else if (['URGENT', 'HIGH', 'MAJOR', 'NEEDS_ATTENTION', 'LOW_STOCK', 'LATE', 'PRIORITY'].includes(s)) {
     bg = 'rgba(245, 158, 11, 0.15)';
     color = '#d97706';
     icon = <AlertTriangle size={size === 'sm' ? 12 : 14} />;

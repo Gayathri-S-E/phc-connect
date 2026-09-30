@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   Truck, Package, AlertTriangle, CheckCircle, 
   Send, ShieldCheck, ArrowRightLeft, Clock, 
@@ -16,8 +17,30 @@ import { DataTable } from '../components/common/DataTable';
 export default function DistrictSupplyPortal() {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const location = useLocation();
+  const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState<'requests' | 'transfers' | 'warehouse' | 'impacts' | 'receipts'>('requests');
+  const getTabFromPath = (path: string): 'requests' | 'transfers' | 'warehouse' | 'impacts' | 'receipts' => {
+    if (path.includes('/transfers')) return 'transfers';
+    if (path.includes('/warehouse')) return 'warehouse';
+    if (path.includes('/impacts')) return 'impacts';
+    if (path.includes('/receipts')) return 'receipts';
+    return 'requests';
+  };
+
+  const [activeTab, setActiveTab] = useState<'requests' | 'transfers' | 'warehouse' | 'impacts' | 'receipts'>(
+    getTabFromPath(location.pathname)
+  );
+
+  useEffect(() => {
+    setActiveTab(getTabFromPath(location.pathname));
+  }, [location.pathname]);
+
+  const handleTabChange = (tab: 'requests' | 'transfers' | 'warehouse' | 'impacts' | 'receipts') => {
+    setActiveTab(tab);
+    if (tab === 'requests') navigate('/supply/requests');
+    else navigate(`/supply/${tab}`);
+  };
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -264,7 +287,7 @@ export default function DistrictSupplyPortal() {
       {/* Navigation Tabs */}
       <div className="flex border-b border-gray-200 bg-white px-4 rounded-lg shadow-sm overflow-x-auto">
         <button
-          onClick={() => setActiveTab('requests')}
+          onClick={() => handleTabChange('requests')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'requests'
               ? 'border-sky-600 text-sky-700 font-semibold'
@@ -280,7 +303,7 @@ export default function DistrictSupplyPortal() {
           )}
         </button>
         <button
-          onClick={() => setActiveTab('transfers')}
+          onClick={() => handleTabChange('transfers')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'transfers'
               ? 'border-sky-600 text-sky-700 font-semibold'
@@ -291,7 +314,7 @@ export default function DistrictSupplyPortal() {
           Stock Transfers & Dispatch
         </button>
         <button
-          onClick={() => setActiveTab('warehouse')}
+          onClick={() => handleTabChange('warehouse')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'warehouse'
               ? 'border-sky-600 text-sky-700 font-semibold'
@@ -302,7 +325,7 @@ export default function DistrictSupplyPortal() {
           District Warehouse Stock
         </button>
         <button
-          onClick={() => setActiveTab('impacts')}
+          onClick={() => handleTabChange('impacts')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'impacts'
               ? 'border-sky-600 text-sky-700 font-semibold'
@@ -313,7 +336,7 @@ export default function DistrictSupplyPortal() {
           Clinical Shortage Notices
         </button>
         <button
-          onClick={() => setActiveTab('receipts')}
+          onClick={() => handleTabChange('receipts')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'receipts'
               ? 'border-sky-600 text-sky-700 font-semibold'

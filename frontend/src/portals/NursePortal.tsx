@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   HeartPulse, UserPlus, CheckCircle, Clock, 
   AlertTriangle, Thermometer, ShieldAlert, Activity, 
@@ -15,7 +16,29 @@ import { useLanguage } from '../context/LanguageContext';
 export default function NursePortal() {
   const { user } = useAuth();
   const { t } = useLanguage();
-  const [activeTab, setActiveTab] = useState<'triage' | 'intake' | 'coldchain' | 'immunization'>('triage');
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const getTabFromPath = (path: string): 'triage' | 'intake' | 'coldchain' | 'immunization' => {
+    if (path.includes('/registration') || path.includes('/intake')) return 'intake';
+    if (path.includes('/coldchain')) return 'coldchain';
+    if (path.includes('/immunization')) return 'immunization';
+    return 'triage';
+  };
+
+  const [activeTab, setActiveTab] = useState<'triage' | 'intake' | 'coldchain' | 'immunization'>(
+    getTabFromPath(location.pathname)
+  );
+
+  useEffect(() => {
+    setActiveTab(getTabFromPath(location.pathname));
+  }, [location.pathname]);
+
+  const handleTabChange = (tab: 'triage' | 'intake' | 'coldchain' | 'immunization') => {
+    setActiveTab(tab);
+    if (tab === 'intake') navigate('/clinical/registration');
+    else navigate(`/clinical/${tab}`);
+  };
   const [triageQueue, setTriageQueue] = useState<any[]>([]);
   const [attendance, setAttendance] = useState<any>(null);
   const [coldChainAssets, setColdChainAssets] = useState<any[]>([]);
@@ -295,7 +318,7 @@ export default function NursePortal() {
         ].map((tab) => (
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key as any)}
+            onClick={() => handleTabChange(tab.key as any)}
             style={{
               display: 'flex',
               alignItems: 'center',

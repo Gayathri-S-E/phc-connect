@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   Building2, Users, AlertTriangle, CheckCircle, 
   Clock, Plus, ShieldCheck, MapPin, Activity, 
@@ -16,8 +17,33 @@ import { DataTable } from '../components/common/DataTable';
 export default function DistrictHealthPortal() {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const location = useLocation();
+  const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState<'cockpit' | 'facilities' | 'actions' | 'alerts' | 'supply_impacts'>('cockpit');
+  const getTabFromPath = (path: string): 'cockpit' | 'facilities' | 'actions' | 'alerts' | 'supply_impacts' => {
+    if (path.includes('/facilities')) return 'facilities';
+    if (path.includes('/actions')) return 'actions';
+    if (path.includes('/alerts')) return 'alerts';
+    if (path.includes('/supply_impacts') || path.includes('/supply-impacts') || path.includes('/impacts')) return 'supply_impacts';
+    return 'cockpit';
+  };
+
+  const [activeTab, setActiveTab] = useState<'cockpit' | 'facilities' | 'actions' | 'alerts' | 'supply_impacts'>(
+    getTabFromPath(location.pathname)
+  );
+
+  useEffect(() => {
+    setActiveTab(getTabFromPath(location.pathname));
+  }, [location.pathname]);
+
+  const handleTabChange = (tab: 'cockpit' | 'facilities' | 'actions' | 'alerts' | 'supply_impacts') => {
+    setActiveTab(tab);
+    if (tab === 'cockpit') navigate('/district');
+    else if (tab === 'actions') navigate('/governance/actions');
+    else if (tab === 'alerts') navigate('/governance/alerts');
+    else if (tab === 'supply_impacts') navigate('/district/supply-impacts');
+    else navigate(`/district/${tab}`);
+  };
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -202,7 +228,7 @@ export default function DistrictHealthPortal() {
       {/* Navigation Tabs */}
       <div className="flex border-b border-gray-200 bg-white px-4 rounded-lg shadow-sm overflow-x-auto">
         <button
-          onClick={() => setActiveTab('cockpit')}
+          onClick={() => handleTabChange('cockpit')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'cockpit'
               ? 'border-teal-600 text-teal-700 font-semibold'
@@ -213,7 +239,7 @@ export default function DistrictHealthPortal() {
           District Command Cockpit
         </button>
         <button
-          onClick={() => setActiveTab('facilities')}
+          onClick={() => handleTabChange('facilities')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'facilities'
               ? 'border-teal-600 text-teal-700 font-semibold'
@@ -229,7 +255,7 @@ export default function DistrictHealthPortal() {
           )}
         </button>
         <button
-          onClick={() => setActiveTab('actions')}
+          onClick={() => handleTabChange('actions')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'actions'
               ? 'border-teal-600 text-teal-700 font-semibold'
@@ -245,7 +271,7 @@ export default function DistrictHealthPortal() {
           )}
         </button>
         <button
-          onClick={() => setActiveTab('alerts')}
+          onClick={() => handleTabChange('alerts')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'alerts'
               ? 'border-teal-600 text-teal-700 font-semibold'
@@ -261,7 +287,7 @@ export default function DistrictHealthPortal() {
           )}
         </button>
         <button
-          onClick={() => setActiveTab('supply_impacts')}
+          onClick={() => handleTabChange('supply_impacts')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'supply_impacts'
               ? 'border-teal-600 text-teal-700 font-semibold'

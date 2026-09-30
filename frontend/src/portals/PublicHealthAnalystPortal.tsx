@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   Activity, BarChart2, TrendingUp, AlertTriangle, 
   CheckCircle, Plus, Search, FileText, Check, 
@@ -15,8 +16,31 @@ import { DataTable } from '../components/common/DataTable';
 export default function PublicHealthAnalystPortal() {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const location = useLocation();
+  const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState<'cockpit' | 'indicators' | 'aggregates' | 'trends' | 'jobs' | 'dataquality'>('cockpit');
+  const getTabFromPath = (path: string): 'cockpit' | 'indicators' | 'aggregates' | 'trends' | 'jobs' | 'dataquality' => {
+    if (path.includes('/indicators')) return 'indicators';
+    if (path.includes('/aggregates')) return 'aggregates';
+    if (path.includes('/trends')) return 'trends';
+    if (path.includes('/jobs')) return 'jobs';
+    if (path.includes('/dataquality')) return 'dataquality';
+    return 'cockpit';
+  };
+
+  const [activeTab, setActiveTab] = useState<'cockpit' | 'indicators' | 'aggregates' | 'trends' | 'jobs' | 'dataquality'>(
+    getTabFromPath(location.pathname)
+  );
+
+  useEffect(() => {
+    setActiveTab(getTabFromPath(location.pathname));
+  }, [location.pathname]);
+
+  const handleTabChange = (tab: 'cockpit' | 'indicators' | 'aggregates' | 'trends' | 'jobs' | 'dataquality') => {
+    setActiveTab(tab);
+    if (tab === 'cockpit') navigate('/analytics');
+    else navigate(`/analytics/${tab}`);
+  };
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -262,7 +286,7 @@ export default function PublicHealthAnalystPortal() {
       {/* Navigation Tabs */}
       <div className="flex border-b border-gray-200 bg-white px-4 rounded-lg shadow-sm overflow-x-auto">
         <button
-          onClick={() => setActiveTab('cockpit')}
+          onClick={() => handleTabChange('cockpit')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'cockpit'
               ? 'border-violet-600 text-violet-700 font-semibold'
@@ -273,7 +297,7 @@ export default function PublicHealthAnalystPortal() {
           Surveillance Cockpit
         </button>
         <button
-          onClick={() => setActiveTab('indicators')}
+          onClick={() => handleTabChange('indicators')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'indicators'
               ? 'border-violet-600 text-violet-700 font-semibold'
@@ -284,7 +308,7 @@ export default function PublicHealthAnalystPortal() {
           Disease Indicators
         </button>
         <button
-          onClick={() => setActiveTab('aggregates')}
+          onClick={() => handleTabChange('aggregates')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'aggregates'
               ? 'border-violet-600 text-violet-700 font-semibold'
@@ -295,7 +319,7 @@ export default function PublicHealthAnalystPortal() {
           De-identified Aggregates
         </button>
         <button
-          onClick={() => setActiveTab('trends')}
+          onClick={() => handleTabChange('trends')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'trends'
               ? 'border-violet-600 text-violet-700 font-semibold'
@@ -306,7 +330,7 @@ export default function PublicHealthAnalystPortal() {
           Epidemiological Trends
         </button>
         <button
-          onClick={() => setActiveTab('dataquality')}
+          onClick={() => handleTabChange('dataquality')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'dataquality'
               ? 'border-violet-600 text-violet-700 font-semibold'

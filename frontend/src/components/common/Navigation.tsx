@@ -46,39 +46,41 @@ export const Navigation: React.FC<NavigationProps> = ({ onItemClick }) => {
   const { t } = useLanguage();
 
   const formatLabel = (key: string): string => {
+    const translated = t(key);
+    if (translated && translated !== key) return translated;
     const parts = key.split('.');
     const raw = parts[parts.length - 1];
     return raw.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   };
 
-  const getSectionHeader = (key: string): string => {
+  const getSectionKey = (key: string): string => {
     if (key.startsWith('patient') || key.startsWith('clinical') || key.startsWith('triage')) {
-      return 'CLINICAL OPERATIONS';
+      return 'nav.section.clinical';
     }
     if (key.startsWith('pharmacy') || key.startsWith('inventory')) {
-      return 'PHARMACY & INVENTORY';
+      return 'nav.section.pharmacy';
     }
     if (key.startsWith('supply') || key.startsWith('warehouse')) {
-      return 'SUPPLY CHAIN & LOGISTICS';
+      return 'nav.section.supply';
     }
     if (key.startsWith('emergency') || key.startsWith('disaster')) {
-      return 'EMERGENCY RESPONSE';
+      return 'nav.section.emergency';
     }
     if (key.startsWith('analytics') || key.startsWith('district') || key.startsWith('state') || key.startsWith('national')) {
-      return 'INTELLIGENCE & GOVERNANCE';
+      return 'nav.section.governance';
     }
     if (key.startsWith('platform') || key.startsWith('admin') || key.startsWith('audit')) {
-      return 'PLATFORM ADMINISTRATION';
+      return 'nav.section.platform';
     }
-    return 'MODULES';
+    return 'nav.section.modules';
   };
 
-  // Group navItems by section
+  // Group navItems by section key
   const groupedItems: Record<string, typeof navItems> = {};
   navItems.forEach((item) => {
-    const section = getSectionHeader(item.key);
-    if (!groupedItems[section]) groupedItems[section] = [];
-    groupedItems[section].push(item);
+    const sectionKey = getSectionKey(item.key);
+    if (!groupedItems[sectionKey]) groupedItems[sectionKey] = [];
+    groupedItems[sectionKey].push(item);
   });
 
   return (
@@ -87,10 +89,10 @@ export const Navigation: React.FC<NavigationProps> = ({ onItemClick }) => {
       <div className="px-3 py-2 bg-sky-50/80 border border-sky-200/80 rounded-xl">
         <div className="text-[10px] font-bold text-sky-700 uppercase tracking-wider flex items-center gap-1.5">
           <Layers className="w-3 h-3 text-sky-600" />
-          Active Workspace
+          {t('nav.activeWorkspace')}
         </div>
         <div className="text-xs font-bold text-slate-900 mt-0.5 truncate">
-          {activeRole ? formatRoleName(activeRole) : 'Authorized Portal'}
+          {activeRole ? formatRoleName(activeRole, t) : t('nav.workspace')}
         </div>
       </div>
 
@@ -99,10 +101,10 @@ export const Navigation: React.FC<NavigationProps> = ({ onItemClick }) => {
           {t('state.loading')}
         </div>
       ) : (
-        Object.entries(groupedItems).map(([sectionTitle, items]) => (
-          <div key={sectionTitle} className="space-y-1">
+        Object.entries(groupedItems).map(([sectionKey, items]) => (
+          <div key={sectionKey} className="space-y-1">
             <div className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              {sectionTitle}
+              {t(sectionKey)}
             </div>
             {items.map((item) => {
               const icon = ICON_MAP[item.icon] || <Activity size={18} />;

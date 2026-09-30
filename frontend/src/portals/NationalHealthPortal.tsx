@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   Globe2, Building2, ShieldCheck, CheckCircle, 
   TrendingUp, BarChart3, Truck, AlertTriangle, 
@@ -15,8 +16,31 @@ import { DataTable } from '../components/common/DataTable';
 export default function NationalHealthPortal() {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const location = useLocation();
+  const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState<'cockpit' | 'states' | 'supply_grid' | 'directives'>('cockpit');
+  const getTabFromPath = (path: string): 'cockpit' | 'states' | 'supply_grid' | 'directives' => {
+    if (path.includes('/states')) return 'states';
+    if (path.includes('/supply-grid') || path.includes('/supply_grid')) return 'supply_grid';
+    if (path.includes('/directives') || path.includes('/actions')) return 'directives';
+    return 'cockpit';
+  };
+
+  const [activeTab, setActiveTab] = useState<'cockpit' | 'states' | 'supply_grid' | 'directives'>(
+    getTabFromPath(location.pathname)
+  );
+
+  useEffect(() => {
+    setActiveTab(getTabFromPath(location.pathname));
+  }, [location.pathname]);
+
+  const handleTabChange = (tab: 'cockpit' | 'states' | 'supply_grid' | 'directives') => {
+    setActiveTab(tab);
+    if (tab === 'cockpit') navigate('/national');
+    else if (tab === 'directives') navigate('/governance/actions');
+    else if (tab === 'supply_grid') navigate('/national/supply-grid');
+    else navigate(`/national/${tab}`);
+  };
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -133,7 +157,7 @@ export default function NationalHealthPortal() {
       {/* Navigation Tabs */}
       <div className="flex border-b border-gray-200 bg-white px-4 rounded-lg shadow-sm overflow-x-auto">
         <button
-          onClick={() => setActiveTab('cockpit')}
+          onClick={() => handleTabChange('cockpit')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'cockpit'
               ? 'border-sky-600 text-sky-700 font-semibold'
@@ -144,7 +168,7 @@ export default function NationalHealthPortal() {
           National Health Cockpit
         </button>
         <button
-          onClick={() => setActiveTab('states')}
+          onClick={() => handleTabChange('states')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'states'
               ? 'border-sky-600 text-sky-700 font-semibold'
@@ -155,7 +179,7 @@ export default function NationalHealthPortal() {
           Inter-State Health Benchmarks
         </button>
         <button
-          onClick={() => setActiveTab('supply_grid')}
+          onClick={() => handleTabChange('supply_grid')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'supply_grid'
               ? 'border-sky-600 text-sky-700 font-semibold'
@@ -166,7 +190,7 @@ export default function NationalHealthPortal() {
           National Supply Chain Grid
         </button>
         <button
-          onClick={() => setActiveTab('directives')}
+          onClick={() => handleTabChange('directives')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'directives'
               ? 'border-sky-600 text-sky-700 font-semibold'

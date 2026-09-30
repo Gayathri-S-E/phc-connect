@@ -27,40 +27,106 @@ SECURITY_ACTIONS = ["AUTH_LOGIN_FAILED", "USER_ROLE_ASSIGNED", "USER_ROLE_REVOKE
 # Navigation catalogue: each item is shown only if the user holds its permission.
 # Grouped by section so every role sees a coherent menu without role-name checks.
 NAV_CATALOGUE: List[Dict] = [
+    # Role 01: Patient
     {"section": "patient", "key": "patient.home", "path": "/patient", "icon": "home", "permission": P.PATIENTS_AWARENESS_READ},
-    {"section": "patient", "key": "patient.appointments", "path": "/patient/appointments", "icon": "calendar", "permission": P.PATIENTS_AWARENESS_READ},
-    {"section": "patient", "key": "patient.records", "path": "/patient/records", "icon": "file", "permission": P.PATIENTS_AWARENESS_READ},
+    {"section": "patient", "key": "patient.appointments", "path": "/patient/appointments", "icon": "calendar", "permission": P.APPOINTMENTS_VIEW},
+    {"section": "patient", "key": "patient.records", "path": "/patient/records", "icon": "file", "permission": P.PATIENTS_RECORDS_READ},
+    {"section": "patient", "key": "patient.prescriptions", "path": "/patient/prescriptions", "icon": "pill", "permission": P.PRESCRIPTIONS_READ},
+    {"section": "patient", "key": "patient.feedback", "path": "/patient/feedback", "icon": "chat", "permission": P.PATIENTS_FEEDBACK_SUBMIT},
     {"section": "patient", "key": "patient.assistant", "path": "/patient/assistant", "icon": "chat", "permission": P.PATIENTS_AI_WELLNESS_CHAT},
+
+    # Role 02: Doctor (Clinical)
     {"section": "clinical", "key": "clinical.queue", "path": "/clinical/queue", "icon": "users", "permission": P.CONSULTATIONS_CONDUCT},
-    {"section": "clinical", "key": "clinical.triage", "path": "/clinical/triage", "icon": "activity", "permission": P.PATIENTS_VITALS_RECORD},
     {"section": "clinical", "key": "clinical.patients", "path": "/clinical/patients", "icon": "user", "permission": P.PATIENTS_PROFILE_READ},
     {"section": "clinical", "key": "clinical.labs", "path": "/clinical/labs", "icon": "flask", "permission": P.LABS_ORDER_READ},
-    {"section": "pharmacy", "key": "pharmacy.dispense", "path": "/pharmacy/dispense", "icon": "pill", "permission": P.PRESCRIPTIONS_DISPENSE},
-    {"section": "pharmacy", "key": "pharmacy.inventory", "path": "/pharmacy/inventory", "icon": "box", "permission": P.INVENTORY_ITEM_READ},
-    {"section": "pharmacy", "key": "pharmacy.receipts", "path": "/pharmacy/receipts", "icon": "truck", "permission": P.INVENTORY_TRANSFER_RECEIVE},
+    {"section": "clinical", "key": "clinical.inventory", "path": "/clinical/inventory", "icon": "box", "permission": P.INVENTORY_ITEM_READ},
+
+    # Role 03: Nurse (Clinical)
+    {"section": "clinical", "key": "clinical.triage", "path": "/clinical/triage", "icon": "activity", "permission": P.PATIENTS_VITALS_RECORD},
+    {"section": "clinical", "key": "clinical.registration", "path": "/clinical/registration", "icon": "user", "permission": P.PATIENTS_PROFILE_CREATE},
+    {"section": "clinical", "key": "clinical.coldchain", "path": "/clinical/coldchain", "icon": "box", "permission": P.COLD_CHAIN_READ},
+    {"section": "clinical", "key": "clinical.immunization", "path": "/clinical/immunization", "icon": "activity", "permission": P.CLINICAL_AI_ADVISORY},
+
+    # Role 04: PHC In-Charge (Facility)
     {"section": "facility", "key": "facility.dashboard", "path": "/facility", "icon": "building", "permission": P.FACILITY_REPORT_VIEW},
-    {"section": "supply", "key": "supply.requests", "path": "/supply/requests", "icon": "clipboard", "permission": P.SUPPLY_REQUEST_READ},
-    {"section": "supply", "key": "supply.dashboard", "path": "/supply", "icon": "truck", "permission": P.SUPPLY_ALLOCATION_MANAGE},
-    {"section": "supply", "key": "supply.impacts", "path": "/supply/impacts", "icon": "alert", "permission": P.SUPPLY_IMPACT_READ},
-    {"section": "emergency", "key": "emergency.dashboard", "path": "/emergency", "icon": "siren", "permission": P.EMERGENCY_INCIDENT_READ},
+    {"section": "facility", "key": "facility.attendance", "path": "/facility/attendance", "icon": "users", "permission": P.STAFF_ATTENDANCE_ADMIN},
+    {"section": "facility", "key": "facility.coldchain", "path": "/facility/coldchain", "icon": "box", "permission": P.COLD_CHAIN_MANAGE},
+    {"section": "facility", "key": "facility.camps", "path": "/facility/camps", "icon": "map", "permission": P.OUTREACH_CAMP_MANAGE},
+    {"section": "facility", "key": "facility.grievances", "path": "/facility/grievances", "icon": "clipboard", "permission": P.FACILITY_COMPLAINT_MANAGE},
+
+    # Role 05: Pharmacist
+    {"section": "pharmacy", "key": "pharmacy.dispense", "path": "/pharmacy/dispense", "icon": "pill", "permission": P.PRESCRIPTIONS_DISPENSE},
+    {"section": "pharmacy", "key": "pharmacy.inventory", "path": "/pharmacy/inventory", "icon": "box", "permission": P.INVENTORY_STOCK_ADJUST},
+    {"section": "pharmacy", "key": "pharmacy.alerts", "path": "/pharmacy/alerts", "icon": "alert", "permission": P.SHORTAGES_INCIDENT_REPORT},
+    {"section": "pharmacy", "key": "pharmacy.receipts", "path": "/pharmacy/receipts", "icon": "truck", "permission": P.INVENTORY_TRANSFER_RECEIVE},
+    {"section": "pharmacy", "key": "pharmacy.druginfo", "path": "/pharmacy/druginfo", "icon": "file", "permission": P.AI_FORECAST_VIEW},
+
+    # Role 06: District Health Officer
     {"section": "district", "key": "district.dashboard", "path": "/district", "icon": "map", "permission": P.GOVERNANCE_DISTRICT_VIEW},
+    {"section": "district", "key": "district.facilities", "path": "/district/facilities", "icon": "building", "permission": P.GOVERNANCE_DISTRICT_VIEW},
+    {"section": "district", "key": "governance.actions", "path": "/governance/actions", "icon": "list", "permission": P.GOVERNANCE_ACTION_CREATE},
+    {"section": "district", "key": "governance.alerts", "path": "/governance/alerts", "icon": "bell", "permission": P.GOVERNANCE_ALERT_MANAGE},
+    {"section": "district", "key": "district.supply_impacts", "path": "/district/supply-impacts", "icon": "alert", "permission": P.SUPPLY_IMPACT_READ},
+
+    # Role 07: District Supply Officer
+    {"section": "supply", "key": "supply.requests", "path": "/supply/requests", "icon": "clipboard", "permission": P.SUPPLY_REQUEST_REVIEW},
+    {"section": "supply", "key": "supply.transfers", "path": "/supply/transfers", "icon": "truck", "permission": P.INVENTORY_TRANSFER_APPROVE},
+    {"section": "supply", "key": "supply.warehouse", "path": "/supply/warehouse", "icon": "box", "permission": P.DASHBOARDS_SUPPLY_VIEW},
+    {"section": "supply", "key": "supply.impacts", "path": "/supply/impacts", "icon": "alert", "permission": P.SUPPLY_IMPACT_SHARE},
+
+    # Role 08: District Emergency Coordinator
+    {"section": "emergency", "key": "emergency.dashboard", "path": "/emergency", "icon": "siren", "permission": P.EMERGENCY_INCIDENT_READ},
+    {"section": "emergency", "key": "emergency.incidents", "path": "/emergency/incidents", "icon": "alert", "permission": P.EMERGENCY_INCIDENT_READ},
+    {"section": "emergency", "key": "emergency.tasks", "path": "/emergency/tasks", "icon": "check", "permission": P.EMERGENCY_INCIDENT_MANAGE},
+    {"section": "emergency", "key": "emergency.resources", "path": "/emergency/resources", "icon": "truck", "permission": P.EMERGENCY_INCIDENT_RESOLVE},
+
+    # Role 09: State Health Admin
     {"section": "state", "key": "state.dashboard", "path": "/state", "icon": "map", "permission": P.GOVERNANCE_STATE_VIEW},
-    {"section": "state", "key": "state.schemes", "path": "/governance/schemes", "icon": "target", "permission": P.GOVERNANCE_SCHEME_READ},
-    {"section": "state", "key": "state.approvals", "path": "/governance/approvals", "icon": "check", "permission": P.GOVERNANCE_APPROVAL_DECIDE},
+    {"section": "state", "key": "state.districts", "path": "/state/districts", "icon": "building", "permission": P.GOVERNANCE_STATE_VIEW},
+    {"section": "state", "key": "governance.approvals", "path": "/governance/approvals", "icon": "check", "permission": P.GOVERNANCE_APPROVAL_DECIDE},
+    {"section": "state", "key": "governance.schemes", "path": "/governance/schemes", "icon": "target", "permission": P.GOVERNANCE_SCHEME_MANAGE},
+    {"section": "state", "key": "governance.reports", "path": "/governance/reports", "icon": "file", "permission": P.GOVERNANCE_REPORT_REVIEW},
+    {"section": "state", "key": "governance.insights", "path": "/governance/insights", "icon": "chart", "permission": P.ANALYTICS_INDICATOR_READ},
+
+    # Role 10: State Supply Manager
+    {"section": "supply", "key": "supply.dashboard", "path": "/supply", "icon": "truck", "permission": P.SUPPLY_ALLOCATION_MANAGE},
+    {"section": "supply", "key": "supply.escalated", "path": "/supply/escalated", "icon": "clipboard", "permission": P.SUPPLY_REQUEST_REVIEW},
+    {"section": "supply", "key": "supply.warehouse", "path": "/supply/warehouse", "icon": "box", "permission": P.WAREHOUSE_MANAGE},
+    {"section": "supply", "key": "supply.monitoring", "path": "/supply/monitoring", "icon": "activity", "permission": P.AI_RISK_ANALYZE},
+    {"section": "supply", "key": "supply.shortages", "path": "/supply/shortages", "icon": "alert", "permission": P.SHORTAGES_INCIDENT_RESOLVE},
+
+    # Role 11: State Public Health Analyst
     {"section": "analytics", "key": "analytics.dashboard", "path": "/analytics", "icon": "chart", "permission": P.ANALYTICS_INDICATOR_READ},
+    {"section": "analytics", "key": "analytics.indicators", "path": "/analytics/indicators", "icon": "target", "permission": P.ANALYTICS_INDICATOR_MANAGE},
+    {"section": "analytics", "key": "analytics.aggregates", "path": "/analytics/aggregates", "icon": "list", "permission": P.ANALYTICS_AGGREGATE_SUBMIT},
+    {"section": "analytics", "key": "analytics.trends", "path": "/analytics/trends", "icon": "activity", "permission": P.ANALYTICS_INSIGHT_REVIEW},
+    {"section": "analytics", "key": "analytics.jobs", "path": "/analytics/jobs", "icon": "server", "permission": P.ANALYTICS_DATA_QUALITY_MANAGE},
+    {"section": "analytics", "key": "analytics.dataquality", "path": "/analytics/dataquality", "icon": "shield", "permission": P.ANALYTICS_DATA_QUALITY_MANAGE},
+
+    # Role 12: National Health Authority
     {"section": "national", "key": "national.dashboard", "path": "/national", "icon": "globe", "permission": P.GOVERNANCE_NATIONAL_VIEW},
-    {"section": "governance", "key": "governance.actions", "path": "/governance/actions", "icon": "list", "permission": P.GOVERNANCE_ACTION_CREATE},
-    {"section": "governance", "key": "governance.alerts", "path": "/governance/alerts", "icon": "bell", "permission": P.GOVERNANCE_ALERT_READ},
-    {"section": "governance", "key": "governance.reports", "path": "/governance/reports", "icon": "file", "permission": P.GOVERNANCE_REPORT_GENERATE},
-    {"section": "governance", "key": "governance.assistant", "path": "/assistant", "icon": "chat", "permission": P.GOVERNANCE_AI_ASSIST},
+    {"section": "national", "key": "national.states", "path": "/national/states", "icon": "building", "permission": P.GOVERNANCE_NATIONAL_VIEW},
+    {"section": "national", "key": "national.supply_grid", "path": "/national/supply-grid", "icon": "truck", "permission": P.GOVERNANCE_NATIONAL_VIEW},
+    {"section": "national", "key": "governance.actions", "path": "/governance/actions", "icon": "list", "permission": P.GOVERNANCE_ACTION_CREATE},
+
+    # Role 13: Super / Platform Administrator
     {"section": "platform", "key": "platform.dashboard", "path": "/platform", "icon": "server", "permission": P.PLATFORM_DASHBOARD_VIEW},
+    {"section": "platform", "key": "platform.security", "path": "/platform/security", "icon": "shield", "permission": P.PLATFORM_SECURITY_READ},
     {"section": "platform", "key": "platform.users", "path": "/platform/users", "icon": "users", "permission": P.IDENTITY_USER_READ},
+    {"section": "platform", "key": "platform.roles", "path": "/platform/roles", "icon": "lock", "permission": P.IDENTITY_ROLE_MANAGE},
     {"section": "platform", "key": "platform.audit", "path": "/platform/audit", "icon": "shield", "permission": P.AUDIT_LOG_READ},
 ]
 
 
 def navigation_for(permissions: Set[str]) -> List[Dict]:
-    return [{k: v for k, v in item.items() if k != "permission"} for item in NAV_CATALOGUE if item["permission"] in permissions]
+    seen_paths = set()
+    items = []
+    for item in NAV_CATALOGUE:
+        if item["permission"] in permissions:
+            if item["path"] not in seen_paths:
+                seen_paths.add(item["path"])
+                items.append({k: v for k, v in item.items() if k != "permission"})
+    return items
 
 
 class PlatformService:

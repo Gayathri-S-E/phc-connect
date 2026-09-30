@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   Calendar, FileText, Pill, MessageSquare, Star, 
   Clock, Plus, CheckCircle, AlertTriangle, ShieldCheck, 
-  MapPin, Heart, ChevronRight, X 
+  MapPin, Heart, ChevronRight, X, Bot, Sparkles
 } from 'lucide-react';
 import { api } from '../services/api';
 import { StateView } from '../components/common/StateView';
@@ -13,7 +14,35 @@ import { useLanguage } from '../context/LanguageContext';
 
 export default function PatientPortal() {
   const { t, language } = useLanguage();
-  const [activeTab, setActiveTab] = useState<'appointments' | 'records' | 'prescriptions' | 'feedback' | 'awareness'>('appointments');
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const getTabFromPath = (path: string): 'appointments' | 'records' | 'prescriptions' | 'feedback' | 'awareness' | 'assistant' => {
+    if (path.includes('/records')) return 'records';
+    if (path.includes('/prescriptions')) return 'prescriptions';
+    if (path.includes('/feedback')) return 'feedback';
+    if (path.includes('/awareness')) return 'awareness';
+    if (path.includes('/assistant')) return 'assistant';
+    return 'appointments';
+  };
+
+  const [activeTab, setActiveTab] = useState<'appointments' | 'records' | 'prescriptions' | 'feedback' | 'awareness' | 'assistant'>(
+    getTabFromPath(location.pathname)
+  );
+
+  useEffect(() => {
+    setActiveTab(getTabFromPath(location.pathname));
+  }, [location.pathname]);
+
+  const handleTabChange = (tab: 'appointments' | 'records' | 'prescriptions' | 'feedback' | 'awareness' | 'assistant') => {
+    setActiveTab(tab);
+    if (tab === 'appointments') {
+      navigate('/patient/appointments');
+    } else {
+      navigate(`/patient/${tab}`);
+    }
+  };
+
   const [profile, setProfile] = useState<any>(null);
   const [appointments, setAppointments] = useState<any[]>([]);
   const [records, setRecords] = useState<any>(null);
@@ -225,10 +254,11 @@ export default function PatientPortal() {
           { key: 'prescriptions', label: t('health.prescription'), icon: <Pill size={16} /> },
           { key: 'feedback', label: 'Feedback & Grievances', icon: <Star size={16} /> },
           { key: 'awareness', label: 'Health Bulletins', icon: <Heart size={16} /> },
+          { key: 'assistant', label: 'AI Wellness Assistant', icon: <Bot size={16} /> },
         ].map((tab) => (
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key as any)}
+            onClick={() => handleTabChange(tab.key as any)}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -250,6 +280,28 @@ export default function PatientPortal() {
           </button>
         ))}
       </div>
+
+      {/* TAB CONTENT: AI WELLNESS ASSISTANT */}
+      {activeTab === 'assistant' && (
+        <div className="glass-card" style={{ padding: '1.5rem', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: 'var(--primary)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Bot size={22} />
+            </div>
+            <div>
+              <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>AI Wellness & Triage Assistant</h3>
+              <p style={{ margin: 0, fontSize: '0.825rem', color: 'var(--text-muted)' }}>
+                Ask questions about symptoms, preventive health measures, diet recommendations, and local clinic services.
+              </p>
+            </div>
+          </div>
+          <div style={{ padding: '1rem', backgroundColor: 'rgba(37, 99, 235, 0.05)', borderRadius: '12px', border: '1px solid rgba(37, 99, 235, 0.15)', fontSize: '0.875rem', color: 'var(--text-main)', lineHeight: 1.5 }}>
+            <p style={{ margin: 0 }}>
+              💡 <strong>Quick Access:</strong> You can also access the AI Assistant at any time by clicking the floating ✨ button at the bottom-right of any screen.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* TAB CONTENT: APPOINTMENTS */}
       {activeTab === 'appointments' && (

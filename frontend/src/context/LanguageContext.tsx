@@ -1,10 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { type Language, translations } from '../utils/i18n';
 
+export type TranslationParams = Record<string, string | number>;
+
 interface LanguageContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
-  t: (key: string, defaultText?: string) => string;
+  t: (key: string, defaultTextOrParams?: string | TranslationParams, params?: TranslationParams) => string;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
@@ -19,8 +21,32 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     localStorage.setItem('app_lang', lang);
   };
 
-  const t = (key: string, defaultText?: string): string => {
-    return translations[language]?.[key] || defaultText || key;
+  const t = (
+    key: string,
+    defaultTextOrParams?: string | TranslationParams,
+    params?: TranslationParams
+  ): string => {
+    let fallbackText: string | undefined;
+    let actualParams: TranslationParams | undefined;
+
+    if (typeof defaultTextOrParams === 'object' && defaultTextOrParams !== null) {
+      actualParams = defaultTextOrParams;
+    } else if (typeof defaultTextOrParams === 'string') {
+      fallbackText = defaultTextOrParams;
+      actualParams = params;
+    } else {
+      actualParams = params;
+    }
+
+    let text = translations[language]?.[key] || translations['en']?.[key] || fallbackText || key;
+
+    if (actualParams && typeof text === 'string') {
+      Object.entries(actualParams).forEach(([k, v]) => {
+        text = text.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v));
+      });
+    }
+
+    return text;
   };
 
   useEffect(() => {

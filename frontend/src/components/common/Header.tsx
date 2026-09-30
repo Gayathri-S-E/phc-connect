@@ -46,7 +46,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
             variant="ghost"
             size="icon"
             onClick={onToggleSidebar}
-            aria-label="Toggle navigation menu"
+            aria-label={t('nav.navigation')}
             className="lg:hidden text-slate-700"
           >
             <Menu className="w-5 h-5" />
@@ -80,7 +80,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
           >
             {Object.entries(DEMO_ACCOUNTS).map(([key, acc]) => (
               <option key={key} value={key}>
-                {acc.name} ({formatRoleName(key)})
+                {acc.name} ({formatRoleName(key, t)})
               </option>
             ))}
           </select>
@@ -97,17 +97,21 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
           </Badge>
         )}
 
-        {/* Language Switcher */}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setLanguage(language === 'en' ? 'ta' : 'en')}
-          title="Toggle English / தமிழ்"
-          className="text-xs font-bold"
-        >
-          <Globe className="w-3.5 h-3.5 text-sky-600" />
-          {language === 'en' ? 'தமிழ்' : 'English'}
-        </Button>
+        {/* Trilingual Language Selector */}
+        <div className="relative flex items-center">
+          <select
+            value={language}
+            onChange={(e) => setLanguage(e.target.value as any)}
+            aria-label={t('nav.language')}
+            className="pl-7 pr-6 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-800 font-bold text-xs cursor-pointer appearance-none outline-none hover:bg-slate-50 transition shadow-2xs"
+          >
+            <option value="en">English</option>
+            <option value="ta">தமிழ்</option>
+            <option value="hi">हिन्दी</option>
+          </select>
+          <Globe className="w-3.5 h-3.5 text-sky-600 absolute left-2 pointer-events-none" />
+          <ChevronDown className="w-3 h-3 text-slate-400 absolute right-2 pointer-events-none" />
+        </div>
 
         {/* User Profile / Logout */}
         {user && (

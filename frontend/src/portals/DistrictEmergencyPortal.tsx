@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   ShieldAlert, AlertTriangle, CheckCircle, Clock, 
   Plus, Users, MapPin, Send, FileText, ChevronRight, 
@@ -15,8 +16,29 @@ import { DataTable } from '../components/common/DataTable';
 export default function DistrictEmergencyPortal() {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const location = useLocation();
+  const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'incidents' | 'tasks' | 'resources'>('dashboard');
+  const getTabFromPath = (path: string): 'dashboard' | 'incidents' | 'tasks' | 'resources' => {
+    if (path.includes('/incidents')) return 'incidents';
+    if (path.includes('/tasks')) return 'tasks';
+    if (path.includes('/resources')) return 'resources';
+    return 'dashboard';
+  };
+
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'incidents' | 'tasks' | 'resources'>(
+    getTabFromPath(location.pathname)
+  );
+
+  useEffect(() => {
+    setActiveTab(getTabFromPath(location.pathname));
+  }, [location.pathname]);
+
+  const handleTabChange = (tab: 'dashboard' | 'incidents' | 'tasks' | 'resources') => {
+    setActiveTab(tab);
+    if (tab === 'dashboard') navigate('/emergency');
+    else navigate(`/emergency/${tab}`);
+  };
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -283,7 +305,7 @@ export default function DistrictEmergencyPortal() {
       {/* Navigation Tabs */}
       <div className="flex border-b border-gray-200 bg-white px-4 rounded-lg shadow-sm overflow-x-auto">
         <button
-          onClick={() => setActiveTab('dashboard')}
+          onClick={() => handleTabChange('dashboard')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'dashboard'
               ? 'border-red-600 text-red-700 font-semibold'
@@ -294,7 +316,7 @@ export default function DistrictEmergencyPortal() {
           Command Cockpit
         </button>
         <button
-          onClick={() => setActiveTab('incidents')}
+          onClick={() => handleTabChange('incidents')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'incidents'
               ? 'border-red-600 text-red-700 font-semibold'
@@ -310,7 +332,7 @@ export default function DistrictEmergencyPortal() {
           )}
         </button>
         <button
-          onClick={() => setActiveTab('tasks')}
+          onClick={() => handleTabChange('tasks')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'tasks'
               ? 'border-red-600 text-red-700 font-semibold'
@@ -321,7 +343,7 @@ export default function DistrictEmergencyPortal() {
           Field Tasks & Deployment
         </button>
         <button
-          onClick={() => setActiveTab('resources')}
+          onClick={() => handleTabChange('resources')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'resources'
               ? 'border-red-600 text-red-700 font-semibold'

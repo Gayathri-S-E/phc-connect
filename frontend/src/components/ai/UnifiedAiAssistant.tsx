@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Bot, X, Send, Loader2, Sparkles, AlertCircle, 
-  MessageSquare, ChevronRight, HelpCircle 
+  ChevronRight
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
@@ -12,46 +12,63 @@ interface ChatMessage {
   sender: 'user' | 'assistant';
   text: string;
   text_ta?: string | null;
+  text_hi?: string | null;
   sources?: string[];
   suggestions?: string[];
   refused?: boolean;
 }
 
 export const UnifiedAiAssistant: React.FC = () => {
-  const { activeRole, user } = useAuth();
+  const { activeRole } = useAuth();
   const { language, t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isModalActive, setIsModalActive] = useState(false);
+
+  // Monitor DOM to detect when a modal or dialog is active, to prevent touch collision
+  useEffect(() => {
+    const checkModal = () => {
+      // Check if any modal is currently open in the DOM
+      const modal = document.querySelector('div[role="dialog"]:not([data-assistant="true"])');
+      setIsModalActive(!!modal);
+    };
+
+    checkModal();
+    const observer = new MutationObserver(checkModal);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, []);
 
   const getInitialMessage = (): string => {
     switch (activeRole) {
       case 'PATIENT':
-        return language === 'ta'
-          ? 'வணக்கம்! நான் உங்கள் நல்வாழ்வு AI உதவியாளர். உங்கள் உடல்நலம், உணவுமுறை அல்லது மருந்து நேரம் குறித்து கேளுங்கள்.'
-          : 'Hello! I am your AI Wellness Assistant. How can I help you maintain good health today?';
+        return t('ai.initial.patient');
       case 'DOCTOR':
-        return 'Clinical Decision Support active. Ask for clinical guidelines, drug contraindications, or differential summaries.';
+        return t('ai.initial.doctor');
       case 'NURSE':
-        return 'Triage Assistant ready. Enter patient symptoms or vital signs for Early Warning Score evaluation.';
+        return t('ai.initial.nurse');
       case 'PHARMACIST':
       case 'DISTRICT_SUPPLY_OFFICER':
       case 'STATE_SUPPLY_MANAGER':
-        return 'Supply Chain Intelligence ready. Ask for consumption trends, stockout risks, or replenishment guidance.';
+        return t('ai.initial.supply');
       default:
-        return language === 'ta'
-          ? 'வணக்கம்! நான் உங்கள் நிர்வாக AI உதவியாளர். மாவட்ட/மாநில சுகாதாரத் தரவுகள் மற்றும் கண்காணிப்பு தகவல்களை கேளுங்கள்.'
-          : 'Governance & Analytics Assistant ready. Ask for live aggregated metrics, disease patterns, or administrative summaries.';
+        return t('ai.initial.governance');
     }
   };
 
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'init',
-      sender: 'assistant',
-      text: getInitialMessage(),
-    },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+
+  // Update initial message whenever role or language changes
+  useEffect(() => {
+    setMessages([
+      {
+        id: 'init',
+        sender: 'assistant',
+        text: getInitialMessage(),
+      },
+    ]);
+  }, [activeRole, language]);
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
@@ -107,7 +124,7 @@ export const UnifiedAiAssistant: React.FC = () => {
           {
             id: (Date.now() + 1).toString(),
             sender: 'assistant',
-            text: res.error?.detail || 'Sorry, I am unable to retrieve that information right now.',
+            text: res.error?.detail || t('state.error'),
           },
         ]);
       }
@@ -117,7 +134,7 @@ export const UnifiedAiAssistant: React.FC = () => {
         {
           id: (Date.now() + 1).toString(),
           sender: 'assistant',
-          text: 'Network error connecting to the AI advisory service.',
+          text: t('ai.error'),
         },
       ]);
     } finally {
@@ -133,51 +150,66 @@ export const UnifiedAiAssistant: React.FC = () => {
 
   return (
     <>
-      {/* Floating Toggle Button */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        aria-label="Open AI Assistant"
+      {/* Floating Toggle Button with Safe Area Isolation */}
+      <div
         style={{
           position: 'fixed',
-          bottom: '1.5rem',
+          bottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))',
           right: '1.5rem',
-          zIndex: 900,
-          width: '56px',
-          height: '56px',
-          borderRadius: '50%',
-          backgroundColor: 'var(--primary)',
-          color: '#ffffff',
-          border: 'none',
-          boxShadow: '0 10px 25px -5px rgba(37, 99, 235, 0.4), 0 8px 10px -6px rgba(37, 99, 235, 0.3)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          transition: 'transform 0.2s ease',
+          zIndex: isModalActive ? 100 : 850,
+          pointerEvents: isModalActive ? 'none' : 'auto',
+          opacity: isModalActive ? 0.3 : 1,
+          transition: 'opacity 0.2s ease, transform 0.2s ease',
         }}
-        onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.06)')}
-        onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
       >
-        <Sparkles size={24} />
-      </button>
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          aria-label={isOpen ? t('ai.closeAssistant') : t('ai.openAssistant')}
+          title={isOpen ? t('ai.closeAssistant') : t('ai.openAssistant')}
+          style={{
+            width: '56px',
+            height: '56px',
+            borderRadius: '50%',
+            backgroundColor: 'var(--primary)',
+            color: '#ffffff',
+            border: 'none',
+            boxShadow: '0 10px 25px -5px rgba(37, 99, 235, 0.4), 0 8px 10px -6px rgba(37, 99, 235, 0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: isModalActive ? 'default' : 'pointer',
+            transition: 'transform 0.2s ease',
+          }}
+          onMouseEnter={(e) => {
+            if (!isModalActive) e.currentTarget.style.transform = 'scale(1.06)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'scale(1)';
+          }}
+        >
+          {isOpen ? <X size={24} /> : <Sparkles size={24} />}
+        </button>
+      </div>
 
       {/* Slide-in Assistant Drawer */}
       {isOpen && (
         <div
           role="dialog"
+          data-assistant="true"
           aria-label={getAssistantTitle()}
           style={{
             position: 'fixed',
-            bottom: '5.5rem',
+            bottom: 'calc(5.5rem + env(safe-area-inset-bottom, 0px))',
             right: '1.5rem',
-            width: '90vw',
+            width: 'calc(100vw - 3rem)',
             maxWidth: '420px',
-            height: '580px',
+            height: 'min(580px, calc(100vh - 8rem))',
+            maxHeight: 'calc(100vh - 8rem)',
             backgroundColor: '#ffffff',
             borderRadius: '16px',
             boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
             border: '1px solid var(--border-color)',
-            zIndex: 950,
+            zIndex: 900,
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
@@ -211,13 +243,13 @@ export const UnifiedAiAssistant: React.FC = () => {
               <div>
                 <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700 }}>{getAssistantTitle()}</h4>
                 <span style={{ fontSize: '0.725rem', opacity: 0.85 }}>
-                  {activeRole ? activeRole.replace(/_/g, ' ') : 'AUTHORIZED PERSPECTIVE'}
+                  {activeRole ? t(`role.${activeRole}`, activeRole.replace(/_/g, ' ')) : t('nav.workspace')}
                 </span>
               </div>
             </div>
             <button
               onClick={() => setIsOpen(false)}
-              aria-label="Close assistant"
+              aria-label={t('ai.closeAssistant')}
               style={{
                 background: 'none',
                 border: 'none',
@@ -282,7 +314,7 @@ export const UnifiedAiAssistant: React.FC = () => {
                         gap: '0.35rem',
                       }}
                     >
-                      <AlertCircle size={14} /> Request outside authorized safety bounds.
+                      <AlertCircle size={14} /> {t('ai.safetyWarning')}
                     </div>
                   )}
                 </div>
@@ -333,7 +365,7 @@ export const UnifiedAiAssistant: React.FC = () => {
                 }}
               >
                 <Loader2 size={16} className="animate-spin" style={{ color: 'var(--primary)' }} />
-                Analyzing authorized data...
+                {t('ai.analyzing')}
               </div>
             )}
           </div>

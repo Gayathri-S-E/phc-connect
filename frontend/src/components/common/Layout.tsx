@@ -67,11 +67,12 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
           </div>
         )}
 
-        {/* Primary Page Content */}
+        {/* Primary Page Content with Dedicated Bottom Safe Area for Floating Controls */}
         <main
           style={{
             flex: 1,
             padding: '1.5rem',
+            paddingBottom: '6rem',
             maxWidth: '1440px',
             margin: '0 auto',
             width: '100%',

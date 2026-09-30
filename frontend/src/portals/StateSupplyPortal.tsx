@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   Truck, Package, AlertTriangle, CheckCircle, 
   Send, ShieldCheck, Play, ArrowRightLeft, 
@@ -16,8 +17,30 @@ import { DataTable } from '../components/common/DataTable';
 export default function StateSupplyPortal() {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const location = useLocation();
+  const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState<'cockpit' | 'escalated' | 'warehouse' | 'monitoring' | 'shortages'>('cockpit');
+  const getTabFromPath = (path: string): 'cockpit' | 'escalated' | 'warehouse' | 'monitoring' | 'shortages' => {
+    if (path.includes('/escalated')) return 'escalated';
+    if (path.includes('/warehouse')) return 'warehouse';
+    if (path.includes('/monitoring')) return 'monitoring';
+    if (path.includes('/shortages')) return 'shortages';
+    return 'cockpit';
+  };
+
+  const [activeTab, setActiveTab] = useState<'cockpit' | 'escalated' | 'warehouse' | 'monitoring' | 'shortages'>(
+    getTabFromPath(location.pathname)
+  );
+
+  useEffect(() => {
+    setActiveTab(getTabFromPath(location.pathname));
+  }, [location.pathname]);
+
+  const handleTabChange = (tab: 'cockpit' | 'escalated' | 'warehouse' | 'monitoring' | 'shortages') => {
+    setActiveTab(tab);
+    if (tab === 'cockpit') navigate('/supply');
+    else navigate(`/supply/${tab}`);
+  };
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -178,7 +201,7 @@ export default function StateSupplyPortal() {
       {/* Navigation Tabs */}
       <div className="flex border-b border-gray-200 bg-white px-4 rounded-lg shadow-sm overflow-x-auto">
         <button
-          onClick={() => setActiveTab('cockpit')}
+          onClick={() => handleTabChange('cockpit')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'cockpit'
               ? 'border-cyan-600 text-cyan-700 font-semibold'
@@ -189,7 +212,7 @@ export default function StateSupplyPortal() {
           State Supply Cockpit
         </button>
         <button
-          onClick={() => setActiveTab('escalated')}
+          onClick={() => handleTabChange('escalated')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'escalated'
               ? 'border-cyan-600 text-cyan-700 font-semibold'
@@ -205,7 +228,7 @@ export default function StateSupplyPortal() {
           )}
         </button>
         <button
-          onClick={() => setActiveTab('warehouse')}
+          onClick={() => handleTabChange('warehouse')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'warehouse'
               ? 'border-cyan-600 text-cyan-700 font-semibold'
@@ -216,7 +239,7 @@ export default function StateSupplyPortal() {
           State Central Reserve Stock
         </button>
         <button
-          onClick={() => setActiveTab('monitoring')}
+          onClick={() => handleTabChange('monitoring')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'monitoring'
               ? 'border-cyan-600 text-cyan-700 font-semibold'
@@ -227,7 +250,7 @@ export default function StateSupplyPortal() {
           Rule-Based Monitor Results
         </button>
         <button
-          onClick={() => setActiveTab('shortages')}
+          onClick={() => handleTabChange('shortages')}
           className={`py-3.5 px-4 font-medium text-sm border-b-2 flex items-center gap-2 transition-colors whitespace-nowrap ${
             activeTab === 'shortages'
               ? 'border-cyan-600 text-cyan-700 font-semibold'
