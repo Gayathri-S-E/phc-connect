@@ -182,6 +182,8 @@ from app.models.public_health import (
     DataQualityIssue,
     AIAnalysisJob,
 )
+from app.models.beds import WardType, BedInventory, BedCensusLog
+from app.models.ai_chat import AIConversation, AIMessage, AIPendingAction, AIPendingActionStatus
 from app.models.governance import (
     GovernanceLevel,
     ActionPriority,
@@ -220,7 +222,7 @@ __all__ += [
     "GovernanceLevel", "ActionPriority", "ActionStatus", "ActionUpdateType", "GovernanceAlertStatus", "AlertOrigin",
     "ReportReviewStatus", "ApprovalStatus", "InsightReviewStatus", "GovernanceAction", "GovernanceActionUpdate",
     "GovernanceAlert", "GovernanceReport", "ApprovalRequest", "HealthScheme", "SchemeTarget", "AIInsight",
-    "AIInteraction",
+    "AIInteraction", "WardType", "BedInventory", "BedCensusLog", "AIConversation", "AIMessage", "AIPendingAction", "AIPendingActionStatus",
     "SupplyRequestLevel", "SupplyRequestStatus", "ReceiptVerificationStatus", "SupplyRequest", "SupplyRequestEvent",
     "SupplyReceipt", "SupplyHealthImpact",
 ]

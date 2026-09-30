@@ -22,6 +22,10 @@ from app.api.v1.supply_requests import router as supply_requests_router
 from app.api.v1.emergency import router as emergency_router
 from app.api.v1.public_health import router as public_health_router
 from app.api.v1.platform import router as platform_router
+from app.api.v1.ai_chat import router as ai_chat_router
+from app.api.v1.capacity import router as capacity_router
+from app.api.v1.ai_voice import router as ai_voice_router
+from app.api.v1.google_services import router as google_services_router
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -49,3 +53,7 @@ api_router.include_router(state_router)
 api_router.include_router(national_router)
 api_router.include_router(public_health_router)
 api_router.include_router(platform_router)
+api_router.include_router(ai_chat_router)
+api_router.include_router(ai_voice_router)
+api_router.include_router(google_services_router)
+api_router.include_router(capacity_router)

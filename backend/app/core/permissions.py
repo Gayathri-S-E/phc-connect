@@ -126,6 +126,11 @@ class SystemPermissions:
     ANALYTICS_INSIGHT_REVIEW = "analytics.insight.review"
     ANALYTICS_DATA_QUALITY_MANAGE = "analytics.data_quality.manage"
 
+    # Bed Availability & Capacity Visibility
+    BEDS_READ = "beds.read"
+    BEDS_OCCUPANCY_UPDATE = "beds.occupancy.update"
+    BEDS_INVENTORY_MANAGE = "beds.inventory.manage"
+
     # Platform Administration (Role 13)
     PLATFORM_DASHBOARD_VIEW = "platform.dashboard.view"
     PLATFORM_SECURITY_READ = "platform.security.read"

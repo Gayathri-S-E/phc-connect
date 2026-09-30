@@ -41,3 +41,6 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 frontend/dist/
+
+# local Google credentials
+backend/secrets/
