@@ -70,32 +70,32 @@ export function PageHeader({
     <div className={cn('flex flex-col gap-4 mb-6', className)}>
       {/* 1. Context Breadcrumbs & Scope Indicator */}
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-        <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-slate-500 font-medium">
-          <span className="flex items-center gap-1 text-slate-400 hover:text-slate-700">
+        <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-muted-foreground font-medium">
+          <span className="flex items-center gap-1 text-muted-foreground hover:text-neutral-text">
             <Home className="w-3.5 h-3.5" />
             <span>Med2Us</span>
           </span>
           {breadcrumbs && breadcrumbs.length > 0 ? (
             breadcrumbs.map((crumb, idx) => (
               <React.Fragment key={idx}>
-                <ChevronRight className="w-3 h-3 text-slate-300" />
+                <ChevronRight className="w-3 h-3 text-muted-foreground" />
                 {crumb.href || crumb.onClick ? (
                   <button
                     type="button"
                     onClick={crumb.onClick}
-                    className="hover:text-sky-600 transition-colors cursor-pointer"
+                    className="hover:text-primary-text transition-colors cursor-pointer"
                   >
                     {crumb.label}
                   </button>
                 ) : (
-                  <span className="text-slate-800 font-semibold">{crumb.label}</span>
+                  <span className="text-foreground font-semibold">{crumb.label}</span>
                 )}
               </React.Fragment>
             ))
           ) : (
             <>
-              <ChevronRight className="w-3 h-3 text-slate-300" />
-              <span className="text-slate-800 font-semibold truncate max-w-xs">{title}</span>
+              <ChevronRight className="w-3 h-3 text-muted-foreground" />
+              <span className="text-foreground font-semibold truncate max-w-xs">{title}</span>
             </>
           )}
         </nav>
@@ -105,13 +105,13 @@ export function PageHeader({
           {scopeBadge ? (
             renderBadge(scopeBadge)
           ) : facilityContext ? (
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200 text-[11px] font-semibold text-slate-700">
-              <Building2 className="w-3 h-3 text-sky-600" />
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-neutral-soft border border-neutral-border text-[11px] font-semibold text-neutral-text">
+              <Building2 className="w-3 h-3 text-primary-text" />
               <span>{facilityContext}</span>
             </div>
           ) : scope ? (
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200 text-[11px] font-semibold text-slate-700">
-              <MapPin className="w-3 h-3 text-sky-600" />
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-neutral-soft border border-neutral-border text-[11px] font-semibold text-neutral-text">
+              <MapPin className="w-3 h-3 text-primary-text" />
               <span>{scope.toUpperCase()} SCOPE</span>
             </div>
           ) : null}
@@ -119,8 +119,8 @@ export function PageHeader({
           {roleBadge ? (
             renderBadge(roleBadge)
           ) : activeRole ? (
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-sky-50 border border-sky-200 text-[11px] font-bold text-sky-800">
-              <Shield className="w-3 h-3 text-sky-600" />
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-info-soft border border-info-border text-[11px] font-bold text-info-text">
+              <Shield className="w-3 h-3 text-primary-text" />
               <span>{formatRoleName(activeRole, t)}</span>
             </div>
           ) : null}
@@ -128,16 +128,16 @@ export function PageHeader({
       </div>
 
       {/* 2. Main Title Row with Primary / Secondary Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border">
         <div className="space-y-1 min-w-0">
           <div className="flex items-center gap-2.5 flex-wrap">
-            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900 leading-tight">
+            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-foreground leading-tight">
               {title}
             </h1>
             {badge && <div>{badge}</div>}
           </div>
           {description && (
-            <p className="text-xs sm:text-sm text-slate-500 font-normal leading-relaxed max-w-3xl">
+            <p className="text-xs sm:text-sm text-muted-foreground font-normal leading-relaxed max-w-3xl">
               {description}
             </p>
           )}
@@ -156,14 +156,14 @@ export function PageHeader({
           {metrics.map((m, idx) => (
             <div
               key={idx}
-              className="p-3 bg-white rounded-xl border border-slate-200/80 shadow-2xs flex flex-col justify-between"
+              className="p-3 bg-card rounded-xl border border-border shadow-2xs flex flex-col justify-between"
             >
-              <div className="text-[11px] font-medium text-slate-500 truncate">{m.label}</div>
-              <div className="text-lg font-bold text-slate-900 mt-1 flex items-baseline gap-1.5">
-                {m.icon && <span className="text-slate-400 text-sm">{m.icon}</span>}
+              <div className="text-[11px] font-medium text-muted-foreground truncate">{m.label}</div>
+              <div className="text-lg font-bold text-foreground mt-1 flex items-baseline gap-1.5">
+                {m.icon && <span className="text-muted-foreground text-sm">{m.icon}</span>}
                 <span>{m.value}</span>
               </div>
-              {m.hint && <div className="text-[10px] text-slate-400 mt-0.5">{m.hint}</div>}
+              {m.hint && <div className="text-[10px] text-muted-foreground mt-0.5">{m.hint}</div>}
             </div>
           ))}
         </div>

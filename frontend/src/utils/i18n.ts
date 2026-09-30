@@ -1,4 +1,4 @@
-// Multilingual localization dictionary for PHC Connect (English, Tamil, and Hindi)
+// Multilingual localization dictionary for Med2Us (English, Tamil, and Hindi)
 
 export type Language = 'en' | 'ta' | 'hi';
 
